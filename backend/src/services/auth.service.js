@@ -3,7 +3,9 @@ const jwt = require("jsonwebtoken");
 
 const env = require("../config/env");
 const { admin, isFirebaseConfigured } = require("../config/firebase");
-const collections = require("../models/collections");
+const OtpCodeModel = require("../models/otpCode.model");
+const SessionModel = require("../models/session.model");
+const UserModel = require("../models/user.model");
 const ApiError = require("../utils/apiError");
 const {
   getFirestore,
@@ -111,14 +113,14 @@ function getExpiryDateFromToken(token, secret) {
 
 async function findUserById(userId) {
   const db = getFirestore();
-  const userSnapshot = await db.collection(collections.users).doc(userId).get();
+  const userSnapshot = await db.collection(UserModel.collectionName).doc(userId).get();
   return serializeDocument(userSnapshot);
 }
 
 async function findUserByEmail(email) {
   const db = getFirestore();
   const snapshot = await db
-    .collection(collections.users)
+    .collection(UserModel.collectionName)
     .where("email", "==", email)
     .limit(1)
     .get();
@@ -129,7 +131,7 @@ async function findUserByEmail(email) {
 async function findUserByPhoneNumber(phoneNumber) {
   const db = getFirestore();
   const snapshot = await db
-    .collection(collections.users)
+    .collection(UserModel.collectionName)
     .where("phoneNumber", "==", phoneNumber)
     .limit(1)
     .get();
@@ -140,7 +142,7 @@ async function findUserByPhoneNumber(phoneNumber) {
 async function findUserByFirebaseUid(firebaseUid) {
   const db = getFirestore();
   const snapshot = await db
-    .collection(collections.users)
+    .collection(UserModel.collectionName)
     .where("firebaseUid", "==", firebaseUid)
     .limit(1)
     .get();
@@ -148,74 +150,63 @@ async function findUserByFirebaseUid(firebaseUid) {
   return serializeQuerySnapshot(snapshot)[0] || null;
 }
 
+async function findUserByContact(channel, identifier) {
+  return channel === "email"
+    ? findUserByEmail(identifier)
+    : findUserByPhoneNumber(identifier);
+}
+
 async function upsertUser({ id, email, phoneNumber, firebaseUid, authProvider, name }) {
   const db = getFirestore();
   const userRef = id
-    ? db.collection(collections.users).doc(id)
-    : db.collection(collections.users).doc();
+    ? db.collection(UserModel.collectionName).doc(id)
+    : db.collection(UserModel.collectionName).doc();
   const existingUser = await userRef.get();
-
-  const payload = {
-    name: name || "User",
-    email: email || null,
-    phoneNumber: phoneNumber || null,
-    firebaseUid: firebaseUid || null,
-    authProvider,
-    createdAt: existingUser.exists
-      ? existingUser.data().createdAt
-      : new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const payload = UserModel.createPayload(
+    { name, email, phoneNumber, firebaseUid, authProvider },
+    existingUser.exists ? existingUser.data() : null
+  );
 
   await userRef.set(payload, { merge: true });
   return serializeDocument(await userRef.get());
 }
 
-async function deleteActiveOtps(channel, identifier) {
-  const db = getFirestore();
-  const snapshot = await db
-    .collection(collections.otpCodes)
-    .where("channel", "==", channel)
-    .where("identifier", "==", identifier)
-    .where("purpose", "==", "login")
-    .where("verifiedAt", "==", null)
-    .get();
-
-  if (snapshot.empty) {
-    return;
-  }
-
-  const batch = db.batch();
-  snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-  await batch.commit();
-}
-
-async function requestOtp(payload) {
+async function createOtpRequest(payload, purpose) {
   const db = getFirestore();
   const channel = getChannel(payload);
   const identifier = getIdentifier(payload);
+  const existingUser = await findUserByContact(channel, identifier);
+
+  if (purpose === "signup" && existingUser) {
+    throw new ApiError(409, "Account already exists. Please login instead");
+  }
+
+  if (purpose === "login" && !existingUser) {
+    throw new ApiError(404, "Account not found. Please sign up first");
+  }
+
   const otp = generateOtpCode();
   const otpHash = hashOtp(identifier, otp);
   const expiresAt = new Date(
     Date.now() + env.otp.expiresInMinutes * 60 * 1000
   ).toISOString();
-
-  await deleteActiveOtps(channel, identifier);
-
-  const otpRef = db.collection(collections.otpCodes).doc();
-  await otpRef.set({
-    channel,
-    identifier,
-    otpHash,
-    purpose: "login",
-    expiresAt,
-    attempts: 0,
-    verifiedAt: null,
-    metadata: {
-      name: payload.name?.trim() || null,
-    },
-    createdAt: new Date().toISOString(),
-  });
+  const otpRef = db
+    .collection(OtpCodeModel.collectionName)
+    .doc(OtpCodeModel.createDocumentId(channel, identifier, purpose));
+  await otpRef.set(
+    OtpCodeModel.createPayload({
+      channel,
+      identifier,
+      otpHash,
+      purpose,
+      expiresAt,
+      attempts: 0,
+      verifiedAt: null,
+      metadata: {
+        name: payload.name?.trim() || null,
+      },
+    })
+  );
 
   const delivery =
     channel === "email"
@@ -233,28 +224,37 @@ async function requestOtp(payload) {
   return {
     channel,
     identifier,
+    purpose,
     expiresAt,
     delivery,
   };
 }
 
+async function requestSignupOtp(payload) {
+  return createOtpRequest(payload, "signup");
+}
+
+async function requestLoginOtp(payload) {
+  return createOtpRequest(payload, "login");
+}
+
 async function createSessionTokens(user, meta = {}) {
   const db = getFirestore();
-  const sessionRef = db.collection(collections.sessions).doc();
+  const sessionRef = db.collection(SessionModel.collectionName).doc();
   const refreshToken = signRefreshToken(user, sessionRef.id);
   const refreshTokenHash = hashToken(refreshToken);
 
-  await sessionRef.set({
-    userId: user.id,
-    refreshTokenHash,
-    userAgent: meta.userAgent || null,
-    ipAddress: meta.ipAddress || null,
-    revokedAt: null,
-    replacedByTokenHash: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    expiresAt: getExpiryDateFromToken(refreshToken, env.refreshTokenSecret),
-  });
+  await sessionRef.set(
+    SessionModel.createPayload({
+      userId: user.id,
+      refreshTokenHash,
+      userAgent: meta.userAgent || null,
+      ipAddress: meta.ipAddress || null,
+      revokedAt: null,
+      replacedByTokenHash: null,
+      expiresAt: getExpiryDateFromToken(refreshToken, env.refreshTokenSecret),
+    })
+  );
 
   return {
     accessToken: signAccessToken(user),
@@ -263,22 +263,16 @@ async function createSessionTokens(user, meta = {}) {
   };
 }
 
-async function verifyOtpAndLogin(payload, meta = {}) {
+async function verifyOtp(payload, purpose, meta = {}) {
   const db = getFirestore();
   const channel = getChannel(payload);
   const identifier = getIdentifier(payload);
   const otpHash = hashOtp(identifier, payload.otp);
-
   const otpSnapshot = await db
-    .collection(collections.otpCodes)
-    .where("channel", "==", channel)
-    .where("identifier", "==", identifier)
-    .where("purpose", "==", "login")
-    .where("verifiedAt", "==", null)
-    .orderBy("createdAt", "desc")
-    .limit(1)
+    .collection(OtpCodeModel.collectionName)
+    .doc(OtpCodeModel.createDocumentId(channel, identifier, purpose))
     .get();
-  const otpRecord = serializeQuerySnapshot(otpSnapshot)[0];
+  const otpRecord = serializeDocument(otpSnapshot);
 
   if (!otpRecord) {
     throw new ApiError(400, "No active OTP found for this user");
@@ -295,7 +289,7 @@ async function verifyOtpAndLogin(payload, meta = {}) {
     );
   }
 
-  const otpRef = db.collection(collections.otpCodes).doc(otpRecord.id);
+  const otpRef = db.collection(OtpCodeModel.collectionName).doc(otpRecord.id);
 
   if (otpRecord.otpHash !== otpHash) {
     await otpRef.set(
@@ -316,20 +310,44 @@ async function verifyOtpAndLogin(payload, meta = {}) {
   );
 
   const user =
-    channel === "email"
-      ? await findUserByEmail(identifier)
-      : await findUserByPhoneNumber(identifier);
+    await findUserByContact(channel, identifier);
 
-  const savedUser = await upsertUser({
-    id: user?.id,
-    email: channel === "email" ? identifier : user?.email,
-    phoneNumber: channel === "phone" ? identifier : user?.phoneNumber,
-    firebaseUid: user?.firebaseUid,
-    authProvider: channel,
-    name: buildUserName(payload, otpRecord.metadata?.name),
-  });
+  if (purpose === "signup" && user) {
+    throw new ApiError(409, "Account already exists. Please login instead");
+  }
+
+  if (purpose === "login" && !user) {
+    throw new ApiError(404, "Account not found. Please sign up first");
+  }
+
+  const savedUser =
+    purpose === "signup"
+      ? await upsertUser({
+          id: null,
+          email: channel === "email" ? identifier : null,
+          phoneNumber: channel === "phone" ? identifier : null,
+          firebaseUid: null,
+          authProvider: channel,
+          name: buildUserName(payload, otpRecord.metadata?.name),
+        })
+      : await upsertUser({
+          id: user.id,
+          email: channel === "email" ? identifier : user.email,
+          phoneNumber: channel === "phone" ? identifier : user.phoneNumber,
+          firebaseUid: user.firebaseUid,
+          authProvider: user.authProvider || channel,
+          name: buildUserName(payload, user.name || otpRecord.metadata?.name),
+        });
 
   return createSessionTokens(savedUser, meta);
+}
+
+async function verifySignupOtp(payload, meta = {}) {
+  return verifyOtp(payload, "signup", meta);
+}
+
+async function verifyLoginOtp(payload, meta = {}) {
+  return verifyOtp(payload, "login", meta);
 }
 
 async function loginWithGoogle(payload, meta = {}) {
@@ -356,12 +374,13 @@ async function loginWithGoogle(payload, meta = {}) {
     (await findUserByFirebaseUid(decodedToken.uid)) ||
     (await findUserByEmail(email));
 
+  // If the email already belongs to a user, Google sign-in links into that same account instead of creating a duplicate.
   const user = await upsertUser({
     id: matchedUser?.id,
     email,
     phoneNumber: matchedUser?.phoneNumber || null,
     firebaseUid: decodedToken.uid,
-    authProvider: "google",
+    authProvider: matchedUser?.authProvider || "google",
     name: payload.name?.trim() || decodedToken.name || email.split("@")[0],
   });
 
@@ -371,7 +390,7 @@ async function loginWithGoogle(payload, meta = {}) {
 async function findActiveSession(sessionId, userId, refreshTokenHash) {
   const db = getFirestore();
   const sessionSnapshot = await db
-    .collection(collections.sessions)
+    .collection(SessionModel.collectionName)
     .doc(sessionId)
     .get();
   const session = serializeDocument(sessionSnapshot);
@@ -427,7 +446,7 @@ async function rotateRefreshToken(refreshToken, meta = {}) {
   const db = getFirestore();
   const newRefreshToken = signRefreshToken(user, session.id);
   await db
-    .collection(collections.sessions)
+    .collection(SessionModel.collectionName)
     .doc(session.id)
     .set(
       {
@@ -471,7 +490,7 @@ async function revokeRefreshSession(refreshToken) {
   }
 
   const db = getFirestore();
-  await db.collection(collections.sessions).doc(session.id).set(
+  await db.collection(SessionModel.collectionName).doc(session.id).set(
     {
       revokedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -491,8 +510,10 @@ async function getUserById(userId) {
 }
 
 module.exports = {
-  requestOtp,
-  verifyOtpAndLogin,
+  requestSignupOtp,
+  requestLoginOtp,
+  verifySignupOtp,
+  verifyLoginOtp,
   loginWithGoogle,
   rotateRefreshToken,
   revokeRefreshSession,

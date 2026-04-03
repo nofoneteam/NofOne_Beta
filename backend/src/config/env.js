@@ -19,6 +19,12 @@ module.exports = {
   refreshTokenSecret:
     process.env.REFRESH_TOKEN_SECRET || "development-refresh-secret",
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || "30d",
+  cookie: {
+    accessTokenName: process.env.ACCESS_TOKEN_COOKIE_NAME || "accessToken",
+    refreshTokenName: process.env.REFRESH_TOKEN_COOKIE_NAME || "refreshToken",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  },
   clientUrls: rawClientUrls
     .split(",")
     .map((value) => value.trim())
@@ -38,6 +44,13 @@ module.exports = {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
     phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+  },
+  groq: {
+    apiKey: process.env.GROQ_API_KEY,
+    chatModel: process.env.HEALTH_CHAT_MODEL || "llama-3.3-70b-versatile",
+    visionModel:
+      process.env.HEALTH_VISION_MODEL ||
+      "meta-llama/llama-4-scout-17b-16e-instruct",
   },
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID,

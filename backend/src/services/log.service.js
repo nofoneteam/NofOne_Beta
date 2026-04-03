@@ -1,18 +1,15 @@
 const ApiError = require("../utils/apiError");
-const collections = require("../models/collections");
+const DailyLogModel = require("../models/dailyLog.model");
+const UserModel = require("../models/user.model");
 const { normalizeDate } = require("../utils/date");
 const {
   getFirestore,
   serializeDocument,
 } = require("../utils/firestore");
 
-function buildDailyLogId(userId, normalizedDate) {
-  return `${userId}_${normalizedDate.toISOString().slice(0, 10)}`;
-}
-
 async function createOrUpdateDailyLog(userId, payload) {
   const db = getFirestore();
-  const userSnapshot = await db.collection(collections.users).doc(userId).get();
+  const userSnapshot = await db.collection(UserModel.collectionName).doc(userId).get();
   const user = serializeDocument(userSnapshot);
 
   if (!user) {
@@ -21,22 +18,17 @@ async function createOrUpdateDailyLog(userId, payload) {
 
   const normalizedDate = normalizeDate(payload.date);
   const logRef = db
-    .collection(collections.dailyLogs)
-    .doc(buildDailyLogId(userId, normalizedDate));
+    .collection(DailyLogModel.collectionName)
+    .doc(DailyLogModel.createDocumentId(userId, normalizedDate));
   const existingLog = await logRef.get();
-
-  await logRef.set(
-    {
-      ...payload,
-      userId,
-      date: normalizedDate.toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdAt: existingLog.exists
-        ? existingLog.data().createdAt
-        : new Date().toISOString(),
-    },
-    { merge: true }
+  const logPayload = DailyLogModel.createPayload(
+    userId,
+    payload,
+    normalizedDate,
+    existingLog.exists ? existingLog.data() : null
   );
+
+  await logRef.set(logPayload, { merge: true });
 
   return serializeDocument(await logRef.get());
 }
@@ -45,8 +37,8 @@ async function getDailyLogByDate(userId, date) {
   const db = getFirestore();
   const normalizedDate = normalizeDate(date);
   const logSnapshot = await db
-    .collection(collections.dailyLogs)
-    .doc(buildDailyLogId(userId, normalizedDate))
+    .collection(DailyLogModel.collectionName)
+    .doc(DailyLogModel.createDocumentId(userId, normalizedDate))
     .get();
   const log = serializeDocument(logSnapshot);
 

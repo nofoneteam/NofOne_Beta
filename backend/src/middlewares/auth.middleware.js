@@ -3,17 +3,17 @@ const asyncHandler = require("../utils/asyncHandler");
 const jwt = require("jsonwebtoken");
 
 const env = require("../config/env");
-const collections = require("../models/collections");
+const UserModel = require("../models/user.model");
 const { getFirestore, serializeDocument } = require("../utils/firestore");
+const { getAccessTokenFromRequest } = require("../utils/cookies");
 
 module.exports = asyncHandler(async (request, response, next) => {
-  const authHeader = request.headers.authorization;
+  // Protected routes accept either a Bearer token or the HTTP-only access token cookie.
+  const token = getAccessTokenFromRequest(request);
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new ApiError(401, "Authorization token is required");
+  if (!token) {
+    throw new ApiError(401, "Access token is required");
   }
-
-  const token = authHeader.split(" ")[1];
   const decodedToken = jwt.verify(token, env.jwtSecret);
 
   if (decodedToken.tokenType && decodedToken.tokenType !== "access") {
@@ -22,7 +22,7 @@ module.exports = asyncHandler(async (request, response, next) => {
 
   const db = getFirestore();
   const userSnapshot = await db
-    .collection(collections.users)
+    .collection(UserModel.collectionName)
     .doc(decodedToken.sub)
     .get();
   const user = serializeDocument(userSnapshot);

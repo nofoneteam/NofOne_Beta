@@ -46,6 +46,11 @@ const verifyOtpRules = [
     .withMessage("Name must be between 2 and 60 characters"),
 ];
 
+const requestSignupOtpRules = requestOtpRules;
+const verifySignupOtpRules = verifyOtpRules;
+const requestLoginOtpRules = contactRules;
+const verifyLoginOtpRules = verifyOtpRules;
+
 const googleLoginRules = [
   body("idToken")
     .trim()
@@ -60,14 +65,17 @@ const googleLoginRules = [
 
 const refreshTokenRules = [
   body("refreshToken")
+    .optional()
     .trim()
     .notEmpty()
-    .withMessage("Refresh token is required"),
+    .withMessage("Refresh token cannot be empty"),
 ];
 
 module.exports = {
-  requestOtpRules,
-  verifyOtpRules,
+  requestSignupOtpRules,
+  verifySignupOtpRules,
+  requestLoginOtpRules,
+  verifyLoginOtpRules,
   googleLoginRules,
   refreshTokenRules,
 };

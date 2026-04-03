@@ -1,5 +1,6 @@
 const ApiError = require("../utils/apiError");
-const collections = require("../models/collections");
+const HealthProfileModel = require("../models/healthProfile.model");
+const UserModel = require("../models/user.model");
 const {
   getFirestore,
   serializeDocument,
@@ -7,28 +8,27 @@ const {
 
 async function upsertHealthProfile(userId, payload) {
   const db = getFirestore();
-  const userSnapshot = await db.collection(collections.users).doc(userId).get();
+  const userSnapshot = await db.collection(UserModel.collectionName).doc(userId).get();
   const user = serializeDocument(userSnapshot);
 
   if (!user) {
     throw new ApiError(404, "User not found");
   }
 
-  const profileRef = db.collection(collections.healthProfiles).doc(userId);
-  const profilePayload = {
-    ...payload,
-    userId,
-    updatedAt: new Date().toISOString(),
-  };
-
+  const profileRef = db.collection(HealthProfileModel.collectionName).doc(userId);
   const existingProfile = await profileRef.get();
+  const profilePayload = HealthProfileModel.createPayload(
+    userId,
+    payload,
+    existingProfile.exists ? existingProfile.data() : null
+  );
 
-  await profileRef.set(
+  await profileRef.set(profilePayload, { merge: true });
+  // Once the user has saved their health profile, the frontend can treat onboarding as complete.
+  await db.collection(UserModel.collectionName).doc(userId).set(
     {
-      ...profilePayload,
-      createdAt: existingProfile.exists
-        ? existingProfile.data().createdAt
-        : new Date().toISOString(),
+      onboarded: true,
+      updatedAt: new Date().toISOString(),
     },
     { merge: true }
   );
@@ -39,7 +39,7 @@ async function upsertHealthProfile(userId, payload) {
 async function getHealthProfile(userId) {
   const db = getFirestore();
   const profileSnapshot = await db
-    .collection(collections.healthProfiles)
+    .collection(HealthProfileModel.collectionName)
     .doc(userId)
     .get();
   const profile = serializeDocument(profileSnapshot);
@@ -48,7 +48,7 @@ async function getHealthProfile(userId) {
     throw new ApiError(404, "Health profile not found");
   }
 
-  const userSnapshot = await db.collection(collections.users).doc(userId).get();
+  const userSnapshot = await db.collection(UserModel.collectionName).doc(userId).get();
   const user = serializeDocument(userSnapshot);
 
   return {

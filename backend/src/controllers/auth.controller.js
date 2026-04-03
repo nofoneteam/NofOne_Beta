@@ -1,12 +1,20 @@
 const asyncHandler = require("../utils/asyncHandler");
+const ApiError = require("../utils/apiError");
 const {
-  requestOtp,
-  verifyOtpAndLogin,
+  requestSignupOtp,
+  requestLoginOtp,
+  verifySignupOtp,
+  verifyLoginOtp,
   loginWithGoogle,
   rotateRefreshToken,
   revokeRefreshSession,
   getUserById,
 } = require("../services/auth.service");
+const {
+  setAuthCookies,
+  clearAuthCookies,
+  getRefreshTokenFromRequest,
+} = require("../utils/cookies");
 
 function getRequestMeta(request) {
   return {
@@ -26,28 +34,51 @@ const getAuthenticatedUser = asyncHandler(async (request, response) => {
   });
 });
 
-const requestOtpController = asyncHandler(async (request, response) => {
-  const result = await requestOtp(request.body);
+const requestSignupOtpController = asyncHandler(async (request, response) => {
+  const result = await requestSignupOtp(request.body);
 
   response.status(200).json({
     success: true,
-    message: "OTP sent successfully",
+    message: "Signup OTP sent successfully",
     data: result,
   });
 });
 
-const verifyOtpController = asyncHandler(async (request, response) => {
-  const result = await verifyOtpAndLogin(request.body, getRequestMeta(request));
+const verifySignupOtpController = asyncHandler(async (request, response) => {
+  const result = await verifySignupOtp(request.body, getRequestMeta(request));
+  setAuthCookies(response, result);
 
   response.status(200).json({
     success: true,
-    message: "OTP verified successfully",
+    message: "Signup completed successfully",
+    data: result,
+  });
+});
+
+const requestLoginOtpController = asyncHandler(async (request, response) => {
+  const result = await requestLoginOtp(request.body);
+
+  response.status(200).json({
+    success: true,
+    message: "Login OTP sent successfully",
+    data: result,
+  });
+});
+
+const verifyLoginOtpController = asyncHandler(async (request, response) => {
+  const result = await verifyLoginOtp(request.body, getRequestMeta(request));
+  setAuthCookies(response, result);
+
+  response.status(200).json({
+    success: true,
+    message: "Login successful",
     data: result,
   });
 });
 
 const googleLoginController = asyncHandler(async (request, response) => {
   const result = await loginWithGoogle(request.body, getRequestMeta(request));
+  setAuthCookies(response, result);
 
   response.status(200).json({
     success: true,
@@ -57,10 +88,17 @@ const googleLoginController = asyncHandler(async (request, response) => {
 });
 
 const refreshSessionController = asyncHandler(async (request, response) => {
+  const refreshToken = getRefreshTokenFromRequest(request);
+
+  if (!refreshToken) {
+    throw new ApiError(400, "Refresh token is required in either cookies or request body");
+  }
+
   const result = await rotateRefreshToken(
-    request.body.refreshToken,
+    refreshToken,
     getRequestMeta(request)
   );
+  setAuthCookies(response, result);
 
   response.status(200).json({
     success: true,
@@ -70,7 +108,14 @@ const refreshSessionController = asyncHandler(async (request, response) => {
 });
 
 const logoutController = asyncHandler(async (request, response) => {
-  await revokeRefreshSession(request.body.refreshToken);
+  const refreshToken = getRefreshTokenFromRequest(request);
+
+  if (!refreshToken) {
+    throw new ApiError(400, "Refresh token is required in either cookies or request body");
+  }
+
+  await revokeRefreshSession(refreshToken);
+  clearAuthCookies(response);
 
   response.status(200).json({
     success: true,
@@ -80,8 +125,10 @@ const logoutController = asyncHandler(async (request, response) => {
 
 module.exports = {
   getAuthenticatedUser,
-  requestOtpController,
-  verifyOtpController,
+  requestSignupOtpController,
+  verifySignupOtpController,
+  requestLoginOtpController,
+  verifyLoginOtpController,
   googleLoginController,
   refreshSessionController,
   logoutController,

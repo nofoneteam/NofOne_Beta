@@ -1,6 +1,7 @@
 const ApiError = require("../utils/apiError");
 const env = require("../config/env");
-const collections = require("../models/collections");
+const ChatMessageModel = require("../models/chatMessage.model");
+const UserModel = require("../models/user.model");
 const {
   getFirestore,
   serializeDocument,
@@ -9,15 +10,13 @@ const {
 
 async function saveMessage({ userId, message, role, type }) {
   const db = getFirestore();
-  const messageRef = db.collection(collections.chatMessages).doc();
-  const payload = {
-    id: messageRef.id,
+  const messageRef = db.collection(ChatMessageModel.collectionName).doc();
+  const payload = ChatMessageModel.createPayload(messageRef.id, {
     userId,
     message,
     role,
     type,
-    timestamp: new Date().toISOString(),
-  };
+  });
 
   await messageRef.set(payload);
 
@@ -27,7 +26,7 @@ async function saveMessage({ userId, message, role, type }) {
 async function getPreviousMessages(userId, limit = env.chatContextLimit) {
   const db = getFirestore();
   const messagesSnapshot = await db
-    .collection(collections.chatMessages)
+    .collection(ChatMessageModel.collectionName)
     .where("userId", "==", userId)
     .orderBy("timestamp", "desc")
     .limit(limit)
@@ -52,7 +51,7 @@ function buildMockAiReply(previousMessages, incomingMessage) {
 
 async function handleChatTurn(userId, payload) {
   const db = getFirestore();
-  const userSnapshot = await db.collection(collections.users).doc(userId).get();
+  const userSnapshot = await db.collection(UserModel.collectionName).doc(userId).get();
   const user = serializeDocument(userSnapshot);
 
   if (!user) {
