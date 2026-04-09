@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   Check,
@@ -17,6 +17,7 @@ import {
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { UpsertHealthProfilePayload } from "@/types/api";
 import type { HealthProfileWithUser, MedicalReport, ProfileAiSuggestion } from "@/types/domain";
@@ -28,6 +29,28 @@ type Option = {
 
 type DraftProfile = UpsertHealthProfilePayload;
 type DraftFieldKey = keyof DraftProfile;
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal?: boolean;
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 const yesNoOptions: Option[] = [
   { label: "Yes", value: "yes" },
@@ -294,6 +317,7 @@ export function ProfileSection({
   onSaveProfile: (payload: DraftProfile) => Promise<void>;
   onUploadReport: (file: File, title?: string | null) => Promise<void>;
 }) {
+  const { toast } = useToast();
   const [draft, setDraft] = useState<DraftProfile | null>(() =>
     profile ? toDraftProfile(profile) : null,
   );
@@ -302,6 +326,16 @@ export function ProfileSection({
   const [pendingSuggestion, setPendingSuggestion] = useState<ProfileAiSuggestion | null>(null);
   const [pendingNote, setPendingNote] = useState("");
   const reportInputRef = useRef<HTMLInputElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+    };
+  }, []);
 
   const bmi = draft?.bmi ?? null;
   const bmiCategory = draft?.bmiCategory ?? "Normal";
@@ -352,6 +386,96 @@ export function ProfileSection({
     });
     setPendingSuggestion(null);
     setPendingNote("");
+  }
+
+  function handleSpeechUnavailable(message: string) {
+    toast({
+      title: "Voice input unavailable",
+      description: message,
+      variant: "error",
+    });
+  }
+
+  function handleMicToggle() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+
+    const RecognitionConstructor =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!RecognitionConstructor) {
+      handleSpeechUnavailable("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new RecognitionConstructor();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+      let finalTranscript = "";
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const nextTranscript = event.results[index][0]?.transcript ?? "";
+        transcript += nextTranscript;
+
+        if (event.results[index].isFinal) {
+          finalTranscript += nextTranscript;
+        }
+      }
+
+      const nextValue = transcript.trim();
+      setLiveTranscript(nextValue);
+      setNoteInput(nextValue);
+
+      if (finalTranscript.trim()) {
+        setLiveTranscript(finalTranscript.trim());
+      }
+    };
+
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      setLiveTranscript("");
+      recognitionRef.current = null;
+
+      if (event.error === "not-allowed") {
+        handleSpeechUnavailable(
+          "Microphone permission was denied. Please allow microphone access and try again.",
+        );
+        return;
+      }
+
+      if (event.error === "no-speech") {
+        handleSpeechUnavailable("No speech was detected. Try speaking a little closer to the microphone.");
+        return;
+      }
+
+      handleSpeechUnavailable("Voice input could not start properly. Please try again.");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setLiveTranscript("");
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
   }
 
   if (loading || !profile || !draft) {
@@ -510,7 +634,14 @@ export function ProfileSection({
               placeholder="e.g. I'm lactose intolerant..."
               value={noteInput}
             />
-            <button className="text-[#9aa0a8]" type="button">
+            <button
+              className={cn(
+                "transition-colors",
+                isListening ? "text-green-800" : "text-[#9aa0a8]",
+              )}
+              onClick={handleMicToggle}
+              type="button"
+            >
               <Mic className="h-4.5 w-4.5" />
             </button>
             <button
@@ -536,6 +667,13 @@ export function ProfileSection({
               {analyzingAi ? <Spinner className="h-4 w-4" /> : <SendHorizonal className="h-4.5 w-4.5" />}
             </button>
           </div>
+          {isListening || liveTranscript ? (
+            <p className="text-[12px] text-[#7f8790]">
+              {isListening
+                ? `Listening... ${liveTranscript || "Start speaking to update your profile note."}`
+                : liveTranscript}
+            </p>
+          ) : null}
           <div className="space-y-3">
             {(draft.aiNotes ?? []).map((note, index) => (
               <div key={`${note}-${index}`} className="flex items-start gap-3">

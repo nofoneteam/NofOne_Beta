@@ -2389,14 +2389,14 @@ function ReportModal({
                             <p className="text-[12px] text-[#7d848c]">{entry.goals.completionPercent}% completed</p>
                           </div>
                           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            <ReportEntryChip label="Calories" value={`${entry.metrics.calories} kcal`} />
+                            <ReportEntryChip label="Calories" value={`${entry.metrics.calories} calories`} />
                             <ReportEntryChip label="Protein" value={`${entry.metrics.protein} g`} />
                             <ReportEntryChip label="Carbs" value={`${entry.metrics.carbs} g`} />
                             <ReportEntryChip label="Fat" value={`${entry.metrics.fat} g`} />
                             <ReportEntryChip label="Water" value={`${entry.metrics.waterIntake} cups`} />
                             <ReportEntryChip label="Sleep" value={`${entry.metrics.sleepHours} hrs`} />
                             <ReportEntryChip label="Exercise" value={`${entry.metrics.exerciseMinutes} min`} />
-                            <ReportEntryChip label="Exercise Burn" value={`${entry.metrics.exerciseCalories} kcal`} />
+                            <ReportEntryChip label="Exercise Burn" value={`${entry.metrics.exerciseCalories} calories`} />
                             <ReportEntryChip label="Weight" value={entry.metrics.weight != null ? `${entry.metrics.weight} kg` : "—"} />
                           </div>
                         </div>
@@ -2483,7 +2483,7 @@ function SmallStat({
       <p className={cn("mt-2 text-[24px] font-semibold leading-none text-[#111111]", valueColor)}>
         {value}
       </p>
-      <p className={cn("mt-1 text-[11px] text-[#a0a5ad]", accent && "font-medium")}>kcal</p>
+      <p className={cn("mt-1 text-[11px] text-[#a0a5ad]", accent && "font-medium")}>calories</p>
     </div>
   );
 }
@@ -2745,7 +2745,7 @@ function ChatHistoryPanel({
                   {parsed ? (
                     <div className="flex items-center gap-2 font-medium">
                       <TargetIcon />
-                      <span>Has Nutrition Data ({parsed.totals.calories} kcal)</span>
+                      <span>Has Nutrition Data ({parsed.totals.calories} calories)</span>
                       {loggedMessageIds.includes(msg.id) ? (
                         <span className="rounded-full bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                           Logged
