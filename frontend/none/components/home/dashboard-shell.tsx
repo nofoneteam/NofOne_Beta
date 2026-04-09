@@ -1444,7 +1444,6 @@ export function DashboardShell() {
               ) : activeSection === "reminders" ? (
                 <div className="mt-5">
                   <PlaceholderSection
-                    description="Reminder management will live here. This route is now wired from the sidebar and ready for the next pass."
                     onBack={handleWeeklyBack}
                     title="Reminders"
                   />
@@ -1452,7 +1451,6 @@ export function DashboardShell() {
               ) : activeSection === "referral" ? (
                 <div className="mt-5">
                   <PlaceholderSection
-                    description="Referral codes and invite rewards will live here. The sidebar route is now connected."
                     onBack={handleWeeklyBack}
                     title="Referral Code"
                   />
@@ -1460,7 +1458,6 @@ export function DashboardShell() {
               ) : activeSection === "terms" ? (
                 <div className="mt-5">
                   <PlaceholderSection
-                    description="Terms and privacy content will live here. The sidebar route is now connected."
                     onBack={handleWeeklyBack}
                     title="Terms & Privacy"
                   />
@@ -1468,7 +1465,6 @@ export function DashboardShell() {
               ) : activeSection === "support" ? (
                 <div className="mt-5">
                   <PlaceholderSection
-                    description="Feedback and support tools will live here. The sidebar route is now connected."
                     onBack={handleWeeklyBack}
                     title="Feedback & Support"
                   />

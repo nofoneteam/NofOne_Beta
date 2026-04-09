@@ -6,11 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export function PlaceholderSection({
   title,
-  description,
   onBack,
 }: {
   title: string;
-  description: string;
   onBack: () => void;
 }) {
   return (
@@ -27,9 +25,7 @@ export function PlaceholderSection({
       </div>
 
       <Card className="rounded-[26px] border-[#ecece7] bg-white shadow-[0_10px_32px_rgba(17,17,17,0.04)]">
-        <CardContent className="p-6 sm:p-8">
-          <p className="text-[15px] leading-7 text-[#717780]">{description}</p>
-        </CardContent>
+        <CardContent className="h-28 p-6 sm:h-32 sm:p-8" />
       </Card>
     </div>
   );
