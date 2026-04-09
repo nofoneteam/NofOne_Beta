@@ -141,7 +141,7 @@ async function generateProfileAiSuggestion(userId, note) {
   const normalizedNote = String(note || "").trim();
 
   if (!normalizedNote) {
-    throw new ApiError(400, "AI note is required");
+    throw new ApiError(400, "AI note is required")
   }
 
   if (!env.groq.apiKey) {

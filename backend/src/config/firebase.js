@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const path = require("path");
+const env = require("./env");
 
 const serviceAccountPath = path.resolve(
   __dirname,
@@ -15,14 +16,27 @@ try {
   serviceAccount = null;
 }
 
-if (serviceAccount && admin.apps.length === 0) {
+const envServiceAccount =
+  env.firebase.projectId &&
+  env.firebase.clientEmail &&
+  env.firebase.privateKey
+    ? {
+        projectId: env.firebase.projectId,
+        clientEmail: env.firebase.clientEmail,
+        privateKey: env.firebase.privateKey,
+      }
+    : null;
+
+const firebaseCredentials = envServiceAccount || serviceAccount;
+
+if (firebaseCredentials && admin.apps.length === 0) {
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert(firebaseCredentials),
   });
 }
 
 module.exports = {
   admin,
-  db: serviceAccount ? admin.firestore() : null,
-  isFirebaseConfigured: Boolean(serviceAccount),
+  db: firebaseCredentials ? admin.firestore() : null,
+  isFirebaseConfigured: Boolean(firebaseCredentials),
 };
