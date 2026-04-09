@@ -2211,6 +2211,213 @@ function ReportModal({
 }) {
   const currentSummary = report?.summary;
   const currentGoals = report?.dailyGoals.metrics ?? [];
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  async function handleDownloadPdf() {
+    if (!report) return;
+    setDownloadingPdf(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 40;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+
+      function ensurePage(needed: number) {
+        if (y + needed > pageH - margin) {
+          doc.addPage();
+          y = margin;
+        }
+      }
+
+      // ── Header ─────────────────────────────────────────────────────────────
+      // Green badge
+      doc.setFillColor(22, 101, 52);
+      doc.roundedRect(margin, y, 28, 28, 6, 6, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(255, 255, 255);
+      doc.text("N1", margin + 14, y + 17, { align: "center" });
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(17, 17, 17);
+      doc.text(report.report.title || "Progress Report", margin + 36, y + 19);
+      y += 44;
+
+      // Subtitle
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(142, 148, 156);
+      const subtitleLines = doc.splitTextToSize(
+        report.report.subtitle || `${report.metadata.startDate} to ${report.metadata.endDate} · ${report.metadata.days} day(s)`,
+        contentW,
+      );
+      doc.text(subtitleLines, margin, y);
+      y += subtitleLines.length * 14 + 8;
+
+      // Divider
+      doc.setDrawColor(239, 239, 233);
+      doc.setLineWidth(1);
+      doc.line(margin, y, pageW - margin, y);
+      y += 20;
+
+      // ── Section helper ─────────────────────────────────────────────────────
+      function sectionTitle(text: string) {
+        ensurePage(32);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(17, 17, 17);
+        doc.text(text, margin, y);
+        y += 18;
+      }
+
+      function chip(
+        x: number,
+        chipY: number,
+        w: number,
+        h: number,
+        label: string,
+        value: string,
+        bg: [number, number, number] = [247, 247, 243],
+      ) {
+        doc.setFillColor(...bg);
+        doc.roundedRect(x, chipY, w, h, 8, 8, "F");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(158, 164, 171);
+        doc.text(label.toUpperCase(), x + 10, chipY + 14);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(17, 17, 17);
+        doc.text(value, x + 10, chipY + 28);
+      }
+
+      // ── Summary stats ──────────────────────────────────────────────────────
+      sectionTitle("Summary");
+      ensurePage(70);
+      const statW = (contentW - 16) / 3;
+      const stats: [string, string][] = [
+        ["Avg Calories", String(Math.round(currentSummary?.avgCalories ?? 0))],
+        ["Goals Met", currentSummary?.goalsMet ?? "0/0"],
+        ["Weight To Go", report.weightTracker.toGo != null ? `${report.weightTracker.toGo} kg` : "—"],
+      ];
+      stats.forEach(([label, value], i) => {
+        chip(margin + i * (statW + 8), y, statW, 52, label, value);
+      });
+      y += 68;
+
+      // Date range sub-label
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(125, 132, 140);
+      doc.text(
+        `${report.metadata.startDate}  →  ${report.metadata.endDate}  ·  ${report.metadata.days} day(s)`,
+        margin,
+        y,
+      );
+      y += 24;
+
+      // ── Highlights ────────────────────────────────────────────────────────
+      sectionTitle("Highlights");
+      for (const item of report.report.highlights) {
+        const lines = doc.splitTextToSize(`• ${item}`, contentW - 24);
+        const blockH = lines.length * 13 + 18;
+        ensurePage(blockH + 8);
+        doc.setFillColor(247, 247, 243);
+        doc.roundedRect(margin, y, contentW, blockH, 8, 8, "F");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(109, 116, 123);
+        doc.text(lines, margin + 12, y + 14);
+        y += blockH + 8;
+      }
+      y += 4;
+
+      // ── Goal targets ─────────────────────────────────────────────────────
+      sectionTitle("Goal Targets");
+      const halfW = (contentW - 8) / 2;
+      currentGoals.forEach((metric, i) => {
+        const col = i % 2;
+        if (col === 0) ensurePage(54);
+        const gx = margin + col * (halfW + 8);
+        chip(
+          gx,
+          y,
+          halfW,
+          46,
+          metric.label,
+          `${Math.round(metric.current)} / ${Math.round(metric.target)} ${metric.unit}`,
+        );
+        if (col === 1 || i === currentGoals.length - 1) {
+          y += 54;
+        }
+      });
+      y += 4;
+
+      // ── Daily Entries ─────────────────────────────────────────────────────
+      sectionTitle("Daily Entries");
+      for (const entry of report.entries) {
+        const rowCount = Math.ceil(9 / 3);
+        const entryH = 24 + rowCount * 46 + 16;
+        ensurePage(entryH + 12);
+
+        // Entry header
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(17, 17, 17);
+        doc.text(entry.date, margin, y + 14);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(125, 132, 140);
+        doc.text(`${entry.goals.completionPercent}% completed`, pageW - margin, y + 14, { align: "right" });
+        y += 22;
+
+        const entryMetrics: [string, string][] = [
+          ["Calories", `${entry.metrics.calories} cal`],
+          ["Protein", `${entry.metrics.protein} g`],
+          ["Carbs", `${entry.metrics.carbs} g`],
+          ["Fat", `${entry.metrics.fat} g`],
+          ["Water", `${entry.metrics.waterIntake} cups`],
+          ["Sleep", `${entry.metrics.sleepHours} hrs`],
+          ["Exercise", `${entry.metrics.exerciseMinutes} min`],
+          ["Burn", `${entry.metrics.exerciseCalories} cal`],
+          ["Weight", entry.metrics.weight != null ? `${entry.metrics.weight} kg` : "—"],
+        ];
+        const chipW3 = (contentW - 16) / 3;
+        entryMetrics.forEach(([label, value], i) => {
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          if (col === 0 && row > 0) ensurePage(46);
+          chip(margin + col * (chipW3 + 8), y + row * 46, chipW3, 38, label, value);
+        });
+        y += Math.ceil(entryMetrics.length / 3) * 46 + 12;
+
+        // Entry divider
+        doc.setDrawColor(239, 239, 233);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, pageW - margin, y);
+        y += 12;
+      }
+
+      // ── Footer on every page ───────────────────────────────────────────────
+      const totalPages = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(158, 164, 171);
+        doc.text(`NofOne Health Report  ·  Page ${p} of ${totalPages}`, pageW / 2, pageH - 20, { align: "center" });
+      }
+
+      const filename = `nofone-report-${report.metadata.startDate}-to-${report.metadata.endDate}.pdf`;
+      doc.save(filename);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-140 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
@@ -2318,6 +2525,18 @@ function ReportModal({
                     ) : null}
                   </div>
                 ) : null}
+
+                <div className="mt-3">
+                  <Button
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#ecece7] bg-white text-[13px] font-medium text-[#111111] transition-colors hover:bg-[#f7f7f3] disabled:opacity-50"
+                    disabled={downloadingPdf || loading || !report}
+                    onClick={() => void handleDownloadPdf()}
+                    type="button"
+                  >
+                    <DownloadIcon />
+                    {downloadingPdf ? "Generating PDF..." : "Download PDF"}
+                  </Button>
+                </div>
               </BaseCard>
             </div>
 
@@ -2904,5 +3123,13 @@ function NutritionModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg className="h-[14px] w-[14px]" fill="none" viewBox="0 0 24 24">
+      <path d="M12 3v13M7 11l5 5 5-5M4 20h16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
   );
 }
