@@ -2510,25 +2510,9 @@ function ReportModal({
                   )}
                 </div>
 
-                {mode === "share" ? (
-                  <div className="mt-4">
-                    <Button
-                      className="flex h-11 w-full items-center justify-center rounded-full bg-green-800 text-white hover:bg-green-900"
-                      disabled={sharing || loading}
-                      onClick={onShare}
-                      type="button"
-                    >
-                      {sharing ? "Generating link..." : "Copy Share Link"}
-                    </Button>
-                    {shareMessage ? (
-                      <p className="mt-3 text-[12px] text-[#7d848c]">{shareMessage}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="mt-3">
+                <div className="mt-4">
                   <Button
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#ecece7] bg-white text-[13px] font-medium text-[#111111] transition-colors hover:bg-[#f7f7f3] disabled:opacity-50"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-green-800 text-[13px] font-medium text-white transition-colors hover:bg-green-900 disabled:opacity-50"
                     disabled={downloadingPdf || loading || !report}
                     onClick={() => void handleDownloadPdf()}
                     type="button"
