@@ -11,6 +11,21 @@ requiredInProduction.forEach((key) => {
 
 const rawClientUrls = process.env.CLIENT_URL || "";
 
+function normalizeFirebasePrivateKey(value) {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+  const unwrappedValue =
+    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
+    (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
+      ? trimmedValue.slice(1, -1)
+      : trimmedValue;
+
+  return unwrappedValue.replace(/\\n/g, "\n");
+}
+
 module.exports = {
   port: Number(process.env.PORT) || 3000,
   nodeEnv: process.env.NODE_ENV || "development",
@@ -101,8 +116,6 @@ module.exports = {
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY
-      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
-      : undefined,
+    privateKey: normalizeFirebasePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
   },
 };
