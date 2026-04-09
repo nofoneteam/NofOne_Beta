@@ -72,31 +72,33 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         return null;
     }
 
-    const totalCalories = extractEstimate(text, [
-        /(?:total calories|calories|kcal)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
-        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)/i,
-    ]);
-    const totalProtein = extractEstimate(text, [
-        /(?:total protein|protein)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
-        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*protein/i,
-    ]);
-    const totalCarbs = extractEstimate(text, [
-        /(?:total carbs|carbs|carbohydrates)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
-        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:carbs|carbohydrates)/i,
-    ]);
-    const totalFat = extractEstimate(text, [
-        /(?:total fat|fat|fats)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
-        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:fat|fats)/i,
-    ]);
-
     const exerciseMinutes = extractEstimate(text, [
-        /(?:exercise minutes)[\s:*_-]*(\d+)/i,
+        /(?:exercise minutes)[^\d]*(\d+)/i,
         /(\d+)\s*(?:min|minutes?)\s*(?:exercise|workout)/i,
     ]);
     const exerciseCalories = extractEstimate(text, [
-        /(?:burned calories)[\s:*_-]*(\d+)/i,
-        /(?:calories burned)[\s:*_-]*(\d+)/i,
-        /(\d+)\s*(?:kcal|calories?)\s*(?:burned)/i,
+        /(?:burned calories|calories burned)[^\d]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
+        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)[^\d]*(?:burned)/i,
+    ]);
+
+    // Strip out exercise lines to prevent them from confusing the food macro parser
+    const foodText = text.replace(/^.*(?:burned|exercise minutes).*$/gim, "");
+
+    const totalCalories = extractEstimate(foodText, [
+        /(?:total calories|calories|kcal)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
+        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)/i,
+    ]);
+    const totalProtein = extractEstimate(foodText, [
+        /(?:total protein|protein)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
+        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*protein/i,
+    ]);
+    const totalCarbs = extractEstimate(foodText, [
+        /(?:total carbs|carbs|carbohydrates)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
+        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:carbs|carbohydrates)/i,
+    ]);
+    const totalFat = extractEstimate(foodText, [
+        /(?:total fat|fat|fats)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
+        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:fat|fats)/i,
     ]);
 
     // If we found absolute zero totals everywhere, it might not be a valid nutrition response
