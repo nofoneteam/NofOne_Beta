@@ -37,6 +37,7 @@ module.exports = asyncHandler(async (request, response, next) => {
     phoneNumber: user.phoneNumber,
     authProvider: user.authProvider,
     name: user.name,
+    role: user.role || "user",
   };
 
   next();

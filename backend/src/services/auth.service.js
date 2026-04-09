@@ -86,6 +86,7 @@ function signAccessToken(user) {
       sub: user.id,
       tokenType: "access",
       authProvider: user.authProvider,
+      role: user.role || "user",
       email: user.email || null,
       phoneNumber: user.phoneNumber || null,
     },
@@ -509,6 +510,38 @@ async function getUserById(userId) {
   return user;
 }
 
+async function setUserRole(userId, role) {
+  const db = getFirestore();
+  const userRef = db.collection(UserModel.collectionName).doc(userId);
+  const snapshot = await userRef.get();
+
+  if (!snapshot.exists) {
+    throw new ApiError(404, "User not found");
+  }
+
+  await userRef.set(
+    {
+      role,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+
+  return serializeDocument(await userRef.get());
+}
+
+async function bootstrapAdmin(currentUserId, bootstrapSecret) {
+  if (!env.adminBootstrapSecret) {
+    throw new ApiError(503, "ADMIN_BOOTSTRAP_SECRET is not configured");
+  }
+
+  if (bootstrapSecret !== env.adminBootstrapSecret) {
+    throw new ApiError(403, "Invalid admin bootstrap secret");
+  }
+
+  return setUserRole(currentUserId, "admin");
+}
+
 module.exports = {
   requestSignupOtp,
   requestLoginOtp,
@@ -518,4 +551,6 @@ module.exports = {
   rotateRefreshToken,
   revokeRefreshSession,
   getUserById,
+  bootstrapAdmin,
+  setUserRole,
 };

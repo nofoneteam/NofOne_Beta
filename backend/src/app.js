@@ -8,6 +8,7 @@ const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const logRoutes = require("./routes/log.routes");
 const chatRoutes = require("./routes/chat.routes");
+const adminRoutes = require("./routes/admin.routes");
 const requestLogger = require("./middlewares/requestLogger.middleware");
 const rateLimiter = require("./middlewares/rateLimiter.middleware");
 const notFound = require("./middlewares/notFound.middleware");
@@ -46,6 +47,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/logs", logRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/admin", adminRoutes);
 app.get("/test" , (req, res)=>{
   res.json({message: "Test route is working!"});
 })

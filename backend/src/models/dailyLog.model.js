@@ -16,8 +16,11 @@ const DailyLogModel = {
       carbs: input.carbs ?? existingData?.carbs ?? 0,
       fat: input.fat ?? existingData?.fat ?? 0,
       waterIntake: input.waterIntake ?? existingData?.waterIntake ?? 0,
+      sleepHours: input.sleepHours ?? existingData?.sleepHours ?? 0,
+      exerciseMinutes: input.exerciseMinutes ?? existingData?.exerciseMinutes ?? 0,
       exerciseCalories:
         input.exerciseCalories ?? existingData?.exerciseCalories ?? 0,
+      weight: input.weight ?? existingData?.weight ?? null,
       ...buildTimestamps(existingData),
     });
   },

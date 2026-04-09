@@ -101,10 +101,41 @@ CLIENT_URL=http://localhost:3000
 
 JWT_SECRET=replace-with-a-strong-secret
 JWT_EXPIRES_IN=7d
+ADMIN_BOOTSTRAP_SECRET=replace-with-a-long-random-secret
+REPORT_SHARE_SECRET=replace-with-a-long-random-secret
 REFRESH_TOKEN_SECRET=replace-with-another-strong-secret
 REFRESH_TOKEN_EXPIRES_IN=30d
 
 CHAT_CONTEXT_LIMIT=20
+CHAT_RECENT_WINDOW=6
+CHAT_SEMANTIC_RECALL_LIMIT=4
+CHAT_MAX_PREFERENCE_FACTS=6
+CHAT_MAX_MEMORY_RECORDS=120
+CHAT_EMBEDDING_DIMENSIONS=128
+CHAT_MIN_SIMILARITY_SCORE=0.2
+CHAT_PROMPT_RECENT_TURNS=2
+CHAT_PROMPT_MEMORY_ITEMS=2
+CHAT_PROMPT_SNIPPET_CHARS=140
+CHAT_CACHE_ENABLED=true
+CHAT_CACHE_TTL_SECONDS=3600
+CHAT_CACHE_MIN_PROMPT_LENGTH=12
+CHAT_CACHE_PREFERENCE_SIGNATURE_LIMIT=3
+CHAT_INCLUDE_DEBUG_RESPONSE=false
+CHAT_CONFIG_MEMORY_TTL_MS=30000
+CHAT_CONFIG_REDIS_TTL_SECONDS=300
+CHAT_USER_CONTEXT_REDIS_TTL_SECONDS=300
+CHAT_USER_LOG_LIMIT=3
+
+REDIS_ENABLED=true
+REDIS_URL=redis://127.0.0.1:6379
+REDIS_KEY_PREFIX=nofone
+REDIS_CONNECT_TIMEOUT_MS=300
+
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+CLOUDINARY_CHAT_IMAGE_FOLDER=nofone/chat
+CLOUDINARY_MAX_UPLOAD_BYTES=8388608
 
 OTP_LENGTH=6
 OTP_EXPIRES_MINUTES=10
@@ -190,12 +221,13 @@ Firestore must be enabled for your Firebase project.
 ### 3. Google Login
 
 1. Frontend authenticates the user with Firebase client SDK
-2. Frontend gets Firebase ID token
-3. Frontend sends `idToken` to `POST /api/auth/google`
-4. Backend verifies the Firebase ID token
-5. Backend creates or updates the user
-6. Backend creates a refresh session
-7. Backend returns `accessToken`, `refreshToken`, and `user`
+2. User completes the Google popup OAuth flow in the browser
+3. Frontend gets Firebase ID token from the signed-in Firebase user
+4. Frontend sends `idToken` to `POST /api/auth/google`
+5. Backend verifies the Firebase ID token
+6. Backend creates or updates the user
+7. Backend creates a refresh session
+8. Backend returns `accessToken`, `refreshToken`, and `user`
 
 ### 4. Refresh Session
 
@@ -229,10 +261,95 @@ Firestore must be enabled for your Firebase project.
 
 - `POST /api/logs`
 - `GET /api/logs/:date`
+- `GET /api/logs/dashboard`
+- `GET /api/logs/weight-tracker`
+- `GET /api/logs/weekly-summary`
+- `GET /api/logs/weekly-report`
+- `POST /api/logs/share-report`
+- `GET /api/logs/shared/:token`
 
 ### Chat
 
 - `POST /api/chat`
+
+### Admin
+
+- `POST /api/admin/bootstrap`
+- `PATCH /api/admin/users/:userId/role`
+- `GET /api/admin/chat-config`
+- `PUT /api/admin/chat-config`
+
+Sample authenticated chat request:
+
+```http
+POST /api/chat
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "type": "text",
+  "message": "I am vegetarian and prefer short answers. Suggest a high-protein breakfast."
+}
+```
+
+Caching notes:
+
+- Same-user repeated prompts can return from the recent session cache path
+- Cross-user repeated text prompts can return from Redis when `REDIS_URL` is configured
+- Debug context is omitted by default to reduce latency and payload size
+- User profile and recent logs are compacted into a cached user-context summary for personalization with low token cost
+
+Chat image upload:
+
+- `POST /api/chat` also accepts `multipart/form-data`
+- File field name: `image`
+- Allowed types: `jpg`, `jpeg`, `png`, `webp`, `avif`
+- The backend uploads the file to Cloudinary via Multer and stores the resulting URL in chat metadata
+
+Firestore chat prompt config:
+
+- Collection: `appConfig`
+- Document id: `chatAssistant`
+- Fields:
+
+```json
+{
+  "systemPrompt": "Your health assistant system prompt for text chat.",
+  "imageSystemPrompt": "Your health assistant system prompt for image chat."
+}
+```
+
+If this document is missing, the backend falls back to its built-in default prompts.
+
+Admin bootstrap flow:
+
+1. Log in as a normal user
+2. Call `POST /api/admin/bootstrap` with your auth cookie or bearer token
+3. Send:
+
+```json
+{
+  "bootstrapSecret": "your-admin-bootstrap-secret"
+}
+```
+
+4. After that, the same user is treated as `role=admin`
+
+Admin prompt update request:
+
+```http
+PUT /api/admin/chat-config
+Content-Type: application/json
+```
+
+```json
+{
+  "systemPrompt": "You are Nofone's health assistant. Be concise and practical. Do not mention consulting professionals unless there is an emergency.",
+  "imageSystemPrompt": "You are Nofone's health assistant for meal and fitness images. Use the image tool, be concise and practical, and do not mention consulting professionals unless there is an emergency."
+}
+```
 
 ## Request Examples
 
