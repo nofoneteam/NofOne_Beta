@@ -437,7 +437,7 @@ export function OnboardingFlow() {
                 </Field>
 
                 <div className="rounded-[20px] border border-[#edf0e8] bg-[#fafaf7] px-4 py-4 text-[14px] leading-6 text-[#67707a]">
-                  Your dashboard will be generated from these values, and you can refine everything later from Profile.
+                  Your dashboard will be generated from these values, and you can refine everything later from Profile
                 </div>
 
                 <Button
