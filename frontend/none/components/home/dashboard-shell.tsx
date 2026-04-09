@@ -887,7 +887,7 @@ export function DashboardShell() {
 
   async function handleCaloriesMacrosUpdate(
     messageId: string,
-    totals: { calories: number; carbs: number; protein: number; fat: number },
+    totals: { calories: number; carbs: number; protein: number; fat: number; exerciseMinutes: number; exerciseCalories: number },
     dateIso: string,
   ) {
     const token = getStoredAccessToken();
@@ -902,10 +902,12 @@ export function DashboardShell() {
       return;
     }
 
-    const prevCal = Math.round(metricValue(dashboard, "calories")?.current ?? 0);
+    const prevCal = Math.round(dashboard?.dailyGoals.rawMetrics?.calories ?? metricValue(dashboard, "calories")?.current ?? 0);
     const prevCrb = Math.round(metricValue(dashboard, "carbs")?.current ?? 0);
     const prevPro = Math.round(metricValue(dashboard, "protein")?.current ?? 0);
     const prevFat = Math.round(metricValue(dashboard, "fat")?.current ?? 0);
+    const prevExeMin = Math.round(metricValue(dashboard, "exerciseMinutes")?.current ?? 0);
+    const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
 
     try {
       await logsApi.saveDailyLog({
@@ -914,6 +916,8 @@ export function DashboardShell() {
         carbs: prevCrb + totals.carbs,
         protein: prevPro + totals.protein,
         fat: prevFat + totals.fat,
+        exerciseMinutes: prevExeMin + totals.exerciseMinutes,
+        exerciseCalories: prevExeCal + totals.exerciseCalories,
       }, token);
       
       toast({
@@ -1196,9 +1200,15 @@ export function DashboardShell() {
     };
 
     if (metricKey === "calories") {
-      logPayload.calories = normalizedValue;
+      const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
+      logPayload.calories = normalizedValue + prevExeCal;
     } else if (metricKey === "exerciseMinutes") {
+      const prevExeMin = Math.round(metricValue(dashboard, "exerciseMinutes")?.current ?? 0);
+      const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
+      const multiplier = prevExeMin > 0 ? (prevExeCal / prevExeMin) : 5;
+      
       logPayload.exerciseMinutes = normalizedValue;
+      logPayload.exerciseCalories = Math.round(normalizedValue * multiplier);
     } else if (metricKey === "waterIntake") {
       logPayload.waterIntake = normalizedValue;
     } else if (metricKey === "sleepHours") {
@@ -2973,7 +2983,7 @@ function MessageModalRouter({
   isLogged: boolean;
   message: ChatMessage;
   onClose: () => void;
-  onLogSave: (totals: { calories: number; protein: number; carbs: number; fat: number }) => void;
+  onLogSave: (totals: { calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
 }) {
   const parsed = parseNutritionFromText(message.message);
 
@@ -3015,12 +3025,14 @@ function NutritionModal({
   isLogged: boolean;
   parsed: ParsedNutritionData;
   onClose: () => void;
-  onLogSave: (totals: { calories: number; protein: number; carbs: number; fat: number }) => void;
+  onLogSave: (totals: { calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
 }) {
   const [cal, setCal] = useState(parsed.totals.calories);
   const [pro, setPro] = useState(parsed.totals.protein);
   const [crb, setCrb] = useState(parsed.totals.carbs);
   const [fat, setFat] = useState(parsed.totals.fat);
+  const [exerciseMin, setExerciseMin] = useState(parsed.totals.exerciseMinutes);
+  const [exerciseCal, setExerciseCal] = useState(parsed.totals.exerciseCalories);
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
@@ -3088,6 +3100,24 @@ function NutritionModal({
                   className="mt-1 block w-full bg-transparent text-[16px] font-semibold outline-none"
                 />
               </label>
+              <label className="block rounded-[12px] border border-[#ecece7] p-2 bg-[#fdfdfa]">
+                <span className="block text-[11px] font-semibold text-[#a0a5ad] uppercase tracking-wider">Exercise (min)</span>
+                <input
+                  type="number"
+                  value={exerciseMin}
+                  onChange={(e) => setExerciseMin(Number(e.target.value) || 0)}
+                  className="mt-1 block w-full bg-transparent text-[16px] font-semibold outline-none"
+                />
+              </label>
+              <label className="block rounded-[12px] border border-[#ecece7] p-2 bg-[#fdfdfa]">
+                <span className="block text-[11px] font-semibold text-[#a0a5ad] uppercase tracking-wider">Burned (kcal)</span>
+                <input
+                  type="number"
+                  value={exerciseCal}
+                  onChange={(e) => setExerciseCal(Number(e.target.value) || 0)}
+                  className="mt-1 block w-full bg-transparent text-[16px] font-semibold outline-none"
+                />
+              </label>
             </div>
           </div>
         </div>
@@ -3100,7 +3130,14 @@ function NutritionModal({
               isLogged ? "cursor-not-allowed bg-[#aab7ad]" : "bg-green-800 hover:opacity-90",
             )}
             disabled={isLogged}
-            onClick={() => onLogSave({ calories: cal, protein: pro, carbs: crb, fat: fat })}
+            onClick={() => onLogSave({ 
+              calories: cal, 
+              protein: pro, 
+              carbs: crb, 
+              fat: fat, 
+              exerciseMinutes: exerciseMin, 
+              exerciseCalories: exerciseCal 
+            })}
           >
             {isLogged ? "Already Logged" : "Log to Today"}
           </button>

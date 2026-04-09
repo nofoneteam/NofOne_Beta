@@ -14,6 +14,8 @@ export interface ParsedNutritionData {
         protein: number;
         carbs: number;
         fat: number;
+        exerciseMinutes: number;
+        exerciseCalories: number;
     };
     originalText: string;
 }
@@ -61,12 +63,12 @@ function extractEstimate(
 export function parseNutritionFromText(text: string): ParsedNutritionData | null {
     if (!text) return null;
 
-    // For this initial parser, we look for key terms that strongly indicate a nutrition breakdown
     const hasCalories = /calories?/i.test(text) || /kcal/i.test(text);
     const hasMacros = /(protein|carbs?|fats?)/i.test(text);
+    const hasExercise = /(?:exercise|burned|workout)/i.test(text);
 
-    // If it's a general text not talking about food macros, don't parse it as a nutrition block
-    if (!hasCalories || !hasMacros) {
+    // If it's a general text not talking about food macros or exercise, don't parse it as a block
+    if (!hasCalories && !hasMacros && !hasExercise) {
         return null;
     }
 
@@ -87,9 +89,25 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:fat|fats)/i,
     ]);
 
-    // If we found absolute zero totals, it might not be a valid nutrition response,
-    // but if we at least found Calories > 0, we can show the chip.
-    if (totalCalories === 0 && totalProtein === 0 && totalCarbs === 0 && totalFat === 0) {
+    const exerciseMinutes = extractEstimate(text, [
+        /(?:exercise minutes)[\s:*_-]*(\d+)/i,
+        /(\d+)\s*(?:min|minutes?)\s*(?:exercise|workout)/i,
+    ]);
+    const exerciseCalories = extractEstimate(text, [
+        /(?:burned calories)[\s:*_-]*(\d+)/i,
+        /(?:calories burned)[\s:*_-]*(\d+)/i,
+        /(\d+)\s*(?:kcal|calories?)\s*(?:burned)/i,
+    ]);
+
+    // If we found absolute zero totals everywhere, it might not be a valid nutrition response
+    if (
+        totalCalories === 0 &&
+        totalProtein === 0 &&
+        totalCarbs === 0 &&
+        totalFat === 0 &&
+        exerciseMinutes === 0 &&
+        exerciseCalories === 0
+    ) {
         return null;
     }
 
@@ -106,6 +124,8 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
             protein: totalProtein,
             carbs: totalCarbs,
             fat: totalFat,
+            exerciseMinutes: exerciseMinutes,
+            exerciseCalories: exerciseCalories,
         },
         originalText: text,
     };

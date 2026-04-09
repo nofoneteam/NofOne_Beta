@@ -225,6 +225,10 @@ export interface GoalMetric {
 export interface DailyGoalsSummary {
   metrics: GoalMetric[];
   completionPercent: number;
+  rawMetrics?: {
+    calories: number;
+    exerciseCalories: number;
+  };
 }
 
 export interface WeightHistoryPoint {
