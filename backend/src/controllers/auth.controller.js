@@ -6,6 +6,7 @@ const {
   verifySignupOtp,
   verifyLoginOtp,
   loginWithGoogle,
+  loginWithPhone,
   rotateRefreshToken,
   revokeRefreshSession,
   getUserById,
@@ -87,6 +88,17 @@ const googleLoginController = asyncHandler(async (request, response) => {
   });
 });
 
+const phoneLoginController = asyncHandler(async (request, response) => {
+  const result = await loginWithPhone(request.body, getRequestMeta(request));
+  setAuthCookies(response, result);
+
+  response.status(200).json({
+    success: true,
+    message: "Phone sign-in successful",
+    data: result,
+  });
+});
+
 const refreshSessionController = asyncHandler(async (request, response) => {
   const refreshToken = getRefreshTokenFromRequest(request);
 
@@ -130,6 +142,7 @@ module.exports = {
   requestLoginOtpController,
   verifyLoginOtpController,
   googleLoginController,
+  phoneLoginController,
   refreshSessionController,
   logoutController,
 };

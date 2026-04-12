@@ -4,6 +4,8 @@ const GENERAL_ALLOWED_PATTERN =
   /\b(hi|hello|hey|hii|hiii|good morning|good afternoon|good evening|thanks|thank you|ok|okay|cool|great|nice|who are you|what can you do|help|my name is|i am|i'm)\b/i;
 const MEAL_LOG_PATTERN =
   /\b(i had|i ate|i drank|ate|had|drank|for breakfast|for lunch|for dinner|for snack|my breakfast|my lunch|my dinner|my meal|today i had)\b/i;
+const STANDALONE_FOOD_NAME_PATTERN =
+  /\b(chole|bhature|bhatura|dosa|idli|poha|upma|paratha|pizza|burger|pasta|biryani|khichdi|paneer|roti|chapati|naan|dal|rice|rajma|samosa|sandwich|noodles|momos|omelette|omelet|salad|oats|shake|smoothie|coffee|tea|juice)\b/i;
 const CONTEXTUAL_FOLLOW_UP_PATTERN =
   /\b(it|this|that|these|those|same|again|continue|continued|previous|earlier|before|last|above|here|there|also|too|them|they|one|ones|meal|dish|food|lunch|dinner|breakfast|snack|workout|exercise|sleep|water|macros|calories)\b/i;
 const STORED_CONTEXT_PATTERN =
@@ -26,6 +28,26 @@ function messageLooksLikeMealLog(message = "") {
   return MEAL_LOG_PATTERN.test(message);
 }
 
+function messageLooksLikeStandaloneFoodName(message = "") {
+  const normalized = normalizeMessage(message);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (messageLooksLikeMealLog(normalized) || messageMentionsHealthTopic(normalized)) {
+    return false;
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+
+  if (words.length === 0 || words.length > 4) {
+    return false;
+  }
+
+  return STANDALONE_FOOD_NAME_PATTERN.test(normalized);
+}
+
 function normalizeMessage(message = "") {
   return String(message).trim().toLowerCase();
 }
@@ -41,7 +63,8 @@ function isLikelyNonsense(message = "") {
   if (
     messageIsAllowedGeneralConversation(normalized) ||
     messageLooksLikeMealLog(normalized) ||
-    messageMentionsHealthTopic(normalized)
+    messageMentionsHealthTopic(normalized) ||
+    messageLooksLikeStandaloneFoodName(normalized)
   ) {
     return false;
   }
@@ -80,6 +103,7 @@ function isHealthDomainRequest(payload, previousMessages = []) {
     return (
       messageMentionsHealthTopic(payload.message) ||
       messageLooksLikeMealLog(payload.message) ||
+      messageLooksLikeStandaloneFoodName(payload.message) ||
       messageIsAllowedGeneralConversation(payload.message)
     );
   }
@@ -87,6 +111,7 @@ function isHealthDomainRequest(payload, previousMessages = []) {
   if (
     messageMentionsHealthTopic(payload.message) ||
     messageLooksLikeMealLog(payload.message) ||
+    messageLooksLikeStandaloneFoodName(payload.message) ||
     messageIsAllowedGeneralConversation(payload.message)
   ) {
     return true;

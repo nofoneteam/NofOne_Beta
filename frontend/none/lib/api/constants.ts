@@ -11,6 +11,7 @@ export const API_ROUTES = {
     loginRequestOtp: `${API_PREFIX}/auth/login/request-otp`,
     loginVerifyOtp: `${API_PREFIX}/auth/login/verify-otp`,
     google: `${API_PREFIX}/auth/google`,
+    phone: `${API_PREFIX}/auth/phone`,
     refresh: `${API_PREFIX}/auth/refresh`,
     logout: `${API_PREFIX}/auth/logout`,
     me: `${API_PREFIX}/auth/me`,

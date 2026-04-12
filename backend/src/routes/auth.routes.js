@@ -12,6 +12,7 @@ const {
   requestLoginOtpRules,
   verifyLoginOtpRules,
   googleLoginRules,
+  phoneLoginRules,
   refreshTokenRules,
 } = require("../validations/auth.validation");
 
@@ -40,6 +41,7 @@ router.post(
   authController.verifyLoginOtpController
 );
 router.post("/google", googleLoginRules, validate, authController.googleLoginController);
+router.post("/phone", phoneLoginRules, validate, authController.phoneLoginController);
 router.post("/refresh", refreshTokenRules, validate, authController.refreshSessionController);
 router.post("/logout", refreshTokenRules, validate, authController.logoutController);
 router.get("/me", authenticate, authController.getAuthenticatedUser);

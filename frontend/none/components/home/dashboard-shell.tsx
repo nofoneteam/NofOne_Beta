@@ -603,6 +603,8 @@ export function DashboardShell() {
 
   const currentWater = Math.round(waterMetric?.current ?? 0);
   const targetWater = Math.max(1, Math.round(waterMetric?.target ?? 8));
+  const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
+  const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
   const remainingCalories = Math.max(
     Math.round((caloriesMetric?.target ?? 0) - (caloriesMetric?.current ?? 0)),
     0,
@@ -1242,9 +1244,9 @@ export function DashboardShell() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-white text-[#111111]">
-      <div className="mx-auto flex h-screen w-full max-w-420 items-start justify-center bg-white px-0 lg:px-4 lg:py-4">
-        <div className="relative flex h-screen w-full overflow-hidden bg-white lg:h-[calc(100vh-32px)] lg:rounded-[28px] lg:border lg:border-[#ecece7] lg:shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
+    <main className="h-screen overflow-x-hidden overflow-y-hidden bg-white text-[#111111]">
+      <div className="mx-auto flex h-screen w-full max-w-full items-start justify-center overflow-x-hidden bg-white px-0 lg:px-4 lg:py-4">
+        <div className="relative flex h-screen w-full max-w-full overflow-x-hidden overflow-y-hidden bg-white lg:h-[calc(100vh-32px)] lg:rounded-[28px] lg:border lg:border-[#ecece7] lg:shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
           {sidebarOpen ? (
             <>
               <button
@@ -1275,8 +1277,8 @@ export function DashboardShell() {
             />
           </aside>
 
-          <section className="flex min-w-0 flex-1 overflow-hidden">
-            <div className="mx-auto flex h-full w-full max-w-310 flex-col overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 xl:px-8">
+          <section className="flex min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
+            <div className="mx-auto flex h-full w-full max-w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 xl:max-w-310 xl:px-8">
               {activeSection === "home" ? (
                 <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3">
                   <button
@@ -1504,16 +1506,18 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "home" ? (
-                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
-                  <div className="space-y-4">
+                <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
+                  <div className="min-w-0 space-y-4">
                     <CaloriesCard
                       current={Math.round(caloriesMetric?.current ?? 0)}
+                      foodCalories={totalFoodCalories}
+                      exerciseCalories={totalExerciseCalories}
                       loading={loading}
                       remaining={remainingCalories}
                       target={Math.round(caloriesMetric?.target ?? 0)}
                     />
 
-                    <div className="grid grid-cols-[1.12fr_0.88fr] gap-3 md:grid-cols-[minmax(0,1.12fr)_minmax(210px,0.88fr)]">
+                    <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1.12fr)_minmax(210px,0.88fr)]">
                       <MacrosCard
                         carbs={carbsMetric}
                         fat={fatMetric}
@@ -1540,7 +1544,7 @@ export function DashboardShell() {
                     />
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="min-w-0 space-y-4">
                     <QuickInputCard
                       chatImage={chatImage}
                       chatImagePreview={chatImagePreview}
@@ -1854,11 +1858,15 @@ function DesktopSummaryCard({
 
 function CaloriesCard({
   current,
+  exerciseCalories,
+  foodCalories,
   loading,
   remaining,
   target,
 }: {
   current: number;
+  exerciseCalories: number;
+  foodCalories: number;
   loading: boolean;
   remaining: number;
   target: number;
@@ -1891,7 +1899,7 @@ function CaloriesCard({
         <p className="text-[14px] font-semibold text-[#111111]">Calories</p>
       </div>
 
-      <div className="mt-5 grid grid-cols-[86px_1fr] items-center gap-5">
+      <div className="mt-5 grid min-w-0 gap-5 sm:grid-cols-[86px_minmax(0,1fr)]">
         <div
           className="relative flex h-21.5 w-21.5 items-center justify-center rounded-full"
           style={{
@@ -1906,9 +1914,9 @@ function CaloriesCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          <SmallStat label="Food" value={current} />
-          <SmallStat label="Exercise" value={0} />
+        <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
+          <SmallStat label="Food" value={foodCalories} />
+          <SmallStat label="Exercise" value={exerciseCalories} />
           <SmallStat accent valueColor="text-green-800" label="Goal" value={target} />
         </div>
       </div>
@@ -1949,7 +1957,7 @@ function MacrosCard({
         <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-8 justify-items-center">
+      <div className="mt-5 grid min-w-0 grid-cols-3 gap-3 justify-items-center sm:gap-8">
         <MacroPill label="Carbs" metric={carbs} />
         <MacroPill label="Protein" metric={protein} />
         <MacroPill label="Fat" metric={fat} />

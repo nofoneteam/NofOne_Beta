@@ -541,6 +541,57 @@ async function loginWithGoogle(payload, meta = {}) {
   return createSessionTokens(user, meta);
 }
 
+async function loginWithPhone(payload, meta = {}) {
+  if (!isFirebaseConfigured) {
+    throw new ApiError(
+      503,
+      "Firebase phone authentication is not configured on the server"
+    );
+  }
+
+  const decodedToken = await admin.auth().verifyIdToken(payload.idToken);
+
+  if (decodedToken.firebase?.sign_in_provider !== "phone") {
+    throw new ApiError(400, "The provided Firebase token is not from phone sign-in");
+  }
+
+  const phoneNumber = normalizePhoneNumber(decodedToken.phone_number);
+
+  if (!phoneNumber) {
+    throw new ApiError(400, "Phone number is required for phone sign-in");
+  }
+
+  const matchedUser =
+    (await findUserByFirebaseUid(decodedToken.uid)) ||
+    (await findUserByPhoneNumber(phoneNumber));
+
+  if (payload.mode === "signup" && matchedUser) {
+    throw new ApiError(409, "Account already exists. Please login instead");
+  }
+
+  if (payload.mode === "login" && !matchedUser) {
+    throw new ApiError(404, "Account not found. Please sign up first");
+  }
+
+  let user = await upsertUser({
+    id: matchedUser?.id,
+    email: matchedUser?.email || null,
+    phoneNumber,
+    firebaseUid: decodedToken.uid,
+    authProvider: matchedUser?.authProvider || "phone",
+    name:
+      payload.name?.trim() ||
+      matchedUser?.name ||
+      (phoneNumber.startsWith("+") ? `User ${phoneNumber.slice(-4)}` : "User"),
+  });
+
+  if (payload.mode === "signup" && payload.referralCode) {
+    user = await applyReferralToUser(user, payload.referralCode);
+  }
+
+  return createSessionTokens(user, meta);
+}
+
 async function findActiveSession(sessionId, userId, refreshTokenHash) {
   const db = getFirestore();
   const sessionSnapshot = await db
@@ -701,6 +752,7 @@ module.exports = {
   verifySignupOtp,
   verifyLoginOtp,
   loginWithGoogle,
+  loginWithPhone,
   rotateRefreshToken,
   revokeRefreshSession,
   getUserById,

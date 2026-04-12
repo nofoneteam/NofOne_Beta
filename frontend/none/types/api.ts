@@ -70,6 +70,13 @@ export interface GoogleLoginPayload {
   referralCode?: string;
 }
 
+export interface PhoneLoginPayload {
+  idToken: string;
+  mode: "signup" | "login";
+  name?: string;
+  referralCode?: string;
+}
+
 export interface RefreshSessionPayload {
   refreshToken?: string;
 }
@@ -176,6 +183,7 @@ export type VerifySignupOtpResponse = ApiSuccessResponse<AuthSession>;
 export type RequestLoginOtpResponse = ApiSuccessResponse<OtpRequestResult>;
 export type VerifyLoginOtpResponse = ApiSuccessResponse<AuthSession>;
 export type GoogleLoginResponse = ApiSuccessResponse<AuthSession>;
+export type PhoneLoginResponse = ApiSuccessResponse<AuthSession>;
 export type RefreshSessionResponse = ApiSuccessResponse<AuthSession>;
 export type AuthMeResponse = ApiSuccessResponse<{ user: User }>;
 export type SaveProfileResponse = ApiSuccessResponse<HealthProfile>;

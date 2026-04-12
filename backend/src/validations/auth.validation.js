@@ -74,6 +74,23 @@ const googleLoginRules = [
   referralCodeRule,
 ];
 
+const phoneLoginRules = [
+  body("idToken")
+    .trim()
+    .notEmpty()
+    .withMessage("Firebase idToken is required"),
+  body("mode")
+    .trim()
+    .isIn(["signup", "login"])
+    .withMessage("mode must be either signup or login"),
+  body("name")
+    .optional()
+    .isString()
+    .isLength({ min: 2, max: 60 })
+    .withMessage("Name must be between 2 and 60 characters"),
+  referralCodeRule,
+];
+
 const refreshTokenRules = [
   body("refreshToken")
     .optional()
@@ -88,5 +105,6 @@ module.exports = {
   requestLoginOtpRules,
   verifyLoginOtpRules,
   googleLoginRules,
+  phoneLoginRules,
   refreshTokenRules,
 };

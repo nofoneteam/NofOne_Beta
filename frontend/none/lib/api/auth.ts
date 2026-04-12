@@ -5,6 +5,8 @@ import type {
   GoogleLoginPayload,
   GoogleLoginResponse,
   OtpRequestPayload,
+  PhoneLoginPayload,
+  PhoneLoginResponse,
   RefreshSessionPayload,
   RefreshSessionResponse,
   RequestLoginOtpResponse,
@@ -55,6 +57,14 @@ export const authApi = {
     });
   },
 
+  phoneLogin(payload: PhoneLoginPayload, token?: string | null) {
+    return apiFetch<PhoneLoginResponse["data"]>(API_ROUTES.auth.phone, {
+      method: "POST",
+      body: payload,
+      token,
+    });
+  },
+
   refreshSession(payload?: RefreshSessionPayload, token?: string | null) {
     return apiFetch<RefreshSessionResponse["data"]>(API_ROUTES.auth.refresh, {
       method: "POST",
@@ -79,4 +89,3 @@ export const authApi = {
     });
   },
 };
-

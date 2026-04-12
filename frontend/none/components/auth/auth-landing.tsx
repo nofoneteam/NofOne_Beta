@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { signInWithPopup } from "firebase/auth";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
+import { signInWithPhoneNumber, signInWithPopup } from "firebase/auth";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authApi, AUTH_TOKEN_STORAGE_KEY, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
 import {
+  createPhoneRecaptchaVerifier,
   createGoogleProvider,
   getFirebaseAuth,
   isFirebaseClientConfigured,
@@ -58,9 +60,8 @@ function ArrowBadge() {
   );
 }
 
-export function AuthLanding() {
+export function AuthLanding({ initialReferralCode }: { initialReferralCode?: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("signup");
   const [otpMethod, setOtpMethod] = useState<OtpMethod>("email");
   const [name, setName] = useState("");
@@ -72,6 +73,9 @@ export function AuthLanding() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeReferralCode, setActiveReferralCode] = useState<string | null>(null);
+  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  const recaptchaContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -90,7 +94,7 @@ export function AuthLanding() {
       return;
     }
 
-    const incomingReferralCode = searchParams.get("ref")?.trim().toUpperCase() || null;
+    const incomingReferralCode = initialReferralCode?.trim().toUpperCase() || null;
 
     if (incomingReferralCode) {
       window.localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, incomingReferralCode);
@@ -100,7 +104,7 @@ export function AuthLanding() {
 
     const storedReferralCode = window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY);
     setActiveReferralCode(storedReferralCode?.trim().toUpperCase() || null);
-  }, [searchParams]);
+  }, [initialReferralCode]);
 
   useEffect(() => {
     setOtpRequested(false);
@@ -108,6 +112,16 @@ export function AuthLanding() {
     setStatusMessage(null);
     setErrorMessage(null);
   }, [mode, otpMethod]);
+
+  useEffect(() => {
+    return () => {
+      confirmationResultRef.current = null;
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
+      }
+    };
+  }, []);
 
   function persistSession(accessToken: string) {
     if (typeof window === "undefined") {
@@ -133,18 +147,37 @@ export function AuthLanding() {
     setStatusMessage(null);
 
     try {
+      if (otpMethod === "phone") {
+        if (!isFirebaseClientConfigured()) {
+          throw new Error(
+            "Firebase Phone Auth is not configured in the frontend environment yet. Add the NEXT_PUBLIC_FIREBASE_* values first.",
+          );
+        }
+
+        if (!recaptchaContainerRef.current) {
+          throw new Error("Phone verification could not start. Recaptcha container is missing.");
+        }
+
+        if (!recaptchaVerifierRef.current) {
+          recaptchaVerifierRef.current = createPhoneRecaptchaVerifier(recaptchaContainerRef.current);
+        }
+
+        confirmationResultRef.current = await signInWithPhoneNumber(
+          getFirebaseAuth(),
+          phoneNumber,
+          recaptchaVerifierRef.current,
+        );
+        setOtpRequested(true);
+        setStatusMessage("A verification code was sent to your phone.");
+        return;
+      }
+
       const payload =
-        otpMethod === "phone"
-          ? {
-              phoneNumber,
-              ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
-              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
-            }
-          : {
-              email,
-              ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
-              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
-            };
+        {
+          email,
+          ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+          ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
+        };
 
       const response =
         mode === "signup"
@@ -154,7 +187,7 @@ export function AuthLanding() {
       setOtpRequested(true);
       setStatusMessage(
         response.message ||
-          `A one-time code was sent to your ${otpMethod === "phone" ? "phone" : "email"}.`,
+          "A one-time code was sent to your email.",
       );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to request OTP");
@@ -170,20 +203,36 @@ export function AuthLanding() {
     setStatusMessage(null);
 
     try {
+      if (otpMethod === "phone") {
+        if (!confirmationResultRef.current) {
+          throw new Error("Please request a phone verification code first.");
+        }
+
+        const credential = await confirmationResultRef.current.confirm(otp);
+        const idToken = await credential.user.getIdToken();
+        const response = await authApi.phoneLogin({
+          idToken,
+          mode,
+          ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+          ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
+        });
+
+        persistSession(response.data.accessToken);
+        if (mode === "signup") {
+          clearStoredReferralCode();
+        }
+        confirmationResultRef.current = null;
+        router.push("/home");
+        return;
+      }
+
       const payload =
-        otpMethod === "phone"
-          ? {
-              phoneNumber,
-              otp,
-              ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
-              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
-            }
-          : {
-              email,
-              otp,
-              ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
-              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
-            };
+        {
+          email,
+          otp,
+          ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+          ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
+        };
 
       const response =
         mode === "signup"
@@ -433,7 +482,10 @@ export function AuthLanding() {
                   <Button
                     className="w-full"
                     disabled={isSubmitting}
-                    onClick={() => setOtpRequested(false)}
+                    onClick={() => {
+                      setOtpRequested(false);
+                      confirmationResultRef.current = null;
+                    }}
                     size="lg"
                     type="button"
                     variant="outline"
@@ -459,11 +511,11 @@ export function AuthLanding() {
             {!isFirebaseClientConfigured() ? (
               <Card className="mt-5 border-amber-200 bg-amber-50">
                 <CardContent className="p-4 text-sm leading-6 text-amber-900">
-                  Google OAuth needs Firebase web config in the frontend env before the
-                  button can work.
+                  Google and phone auth need Firebase web config in the frontend env before they can work.
                 </CardContent>
               </Card>
             ) : null}
+            <div ref={recaptchaContainerRef} id="firebase-phone-recaptcha" />
           </section>
 
           <section className="relative overflow-hidden bg-[#1f8a47] p-8 text-white sm:p-10 lg:p-12">

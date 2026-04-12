@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, RecaptchaVerifier } from "firebase/auth";
 
 import { env } from "@/lib/config/env";
 
@@ -40,6 +40,12 @@ export function getFirebaseAuth() {
   return getAuth(getFirebaseApp());
 }
 
+export function createPhoneRecaptchaVerifier(container: HTMLElement) {
+  return new RecaptchaVerifier(getFirebaseAuth(), container, {
+    size: "invisible",
+  });
+}
+
 export function createGoogleProvider() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({
@@ -48,4 +54,3 @@ export function createGoogleProvider() {
 
   return provider;
 }
-
