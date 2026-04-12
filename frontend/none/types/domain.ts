@@ -27,6 +27,11 @@ export interface User {
   authProvider?: AuthProvider;
   role: UserRole;
   onboarded: boolean;
+  referralCode?: string | null;
+  referredByUserId?: string | null;
+  referredByCode?: string | null;
+  referredAt?: string | null;
+  referralCount?: number;
   createdAt: string;
   updatedAt: string;
 }

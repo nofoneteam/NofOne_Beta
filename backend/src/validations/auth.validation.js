@@ -1,5 +1,13 @@
 const { body } = require("express-validator");
 
+const referralCodeRule = body("referralCode")
+  .optional()
+  .trim()
+  .isLength({ min: 4, max: 32 })
+  .withMessage("referralCode must be between 4 and 32 characters")
+  .matches(/^[A-Za-z0-9_-]+$/)
+  .withMessage("referralCode must contain only letters, numbers, hyphens, or underscores");
+
 const contactRules = [
   body("email")
     .optional()
@@ -29,6 +37,7 @@ const requestOtpRules = [
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),
+  referralCodeRule,
 ];
 
 const verifyOtpRules = [
@@ -44,6 +53,7 @@ const verifyOtpRules = [
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),
+  referralCodeRule,
 ];
 
 const requestSignupOtpRules = requestOtpRules;
@@ -61,6 +71,7 @@ const googleLoginRules = [
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),
+  referralCodeRule,
 ];
 
 const refreshTokenRules = [

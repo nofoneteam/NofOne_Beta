@@ -12,7 +12,7 @@ const {
   serializeDocument,
   serializeQuerySnapshot,
 } = require("../utils/firestore");
-const { sendOtpEmail } = require("./email.service");
+const { sendOtpEmail, sendReferralUsedEmail } = require("./email.service");
 const { sendOtpSms } = require("./sms.service");
 
 function normalizeEmail(email) {
@@ -21,6 +21,10 @@ function normalizeEmail(email) {
 
 function normalizePhoneNumber(phoneNumber) {
   return phoneNumber?.trim();
+}
+
+function normalizeReferralCode(referralCode) {
+  return referralCode?.trim().toUpperCase() || null;
 }
 
 function getChannel(payload) {
@@ -151,10 +155,138 @@ async function findUserByFirebaseUid(firebaseUid) {
   return serializeQuerySnapshot(snapshot)[0] || null;
 }
 
+async function findUserByReferralCode(referralCode) {
+  const normalizedCode = normalizeReferralCode(referralCode);
+
+  if (!normalizedCode) {
+    return null;
+  }
+
+  const db = getFirestore();
+  const snapshot = await db
+    .collection(UserModel.collectionName)
+    .where("referralCode", "==", normalizedCode)
+    .limit(1)
+    .get();
+
+  return serializeQuerySnapshot(snapshot)[0] || null;
+}
+
 async function findUserByContact(channel, identifier) {
   return channel === "email"
     ? findUserByEmail(identifier)
     : findUserByPhoneNumber(identifier);
+}
+
+function generateReferralCodeCandidate() {
+  return crypto.randomBytes(4).toString("hex").toUpperCase();
+}
+
+async function generateUniqueReferralCode() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = generateReferralCodeCandidate();
+    const existingUser = await findUserByReferralCode(candidate);
+
+    if (!existingUser) {
+      return candidate;
+    }
+  }
+
+  throw new ApiError(500, "Unable to generate a unique referral code");
+}
+
+async function ensureUserReferralCode(user) {
+  if (!user) {
+    return null;
+  }
+
+  if (user.referralCode) {
+    return user;
+  }
+
+  const db = getFirestore();
+  const referralCode = await generateUniqueReferralCode();
+  const userRef = db.collection(UserModel.collectionName).doc(user.id);
+
+  await userRef.set(
+    {
+      referralCode,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+
+  return serializeDocument(await userRef.get());
+}
+
+async function notifyReferrerOfSignup(referrer, referredUser) {
+  if (!referrer?.email) {
+    return;
+  }
+
+  try {
+    await sendReferralUsedEmail({
+      to: referrer.email,
+      referrerName: referrer.name,
+      referredUserName: referredUser.name,
+      referredUserEmail: referredUser.email,
+      referredUserPhoneNumber: referredUser.phoneNumber,
+    });
+  } catch (error) {
+    console.error("Failed to send referral notification email", error);
+  }
+}
+
+async function applyReferralToUser(user, referralCode) {
+  const normalizedCode = normalizeReferralCode(referralCode);
+
+  if (!normalizedCode) {
+    return user;
+  }
+
+  const currentUser = await ensureUserReferralCode(user);
+
+  if (currentUser.referredByUserId) {
+    return currentUser;
+  }
+
+  const referrer = await findUserByReferralCode(normalizedCode);
+
+  if (!referrer) {
+    throw new ApiError(400, "Invalid referral code");
+  }
+
+  if (referrer.id === currentUser.id) {
+    throw new ApiError(400, "You cannot use your own referral code");
+  }
+
+  const db = getFirestore();
+  const userRef = db.collection(UserModel.collectionName).doc(currentUser.id);
+  const referrerRef = db.collection(UserModel.collectionName).doc(referrer.id);
+
+  await Promise.all([
+    userRef.set(
+      {
+        referredByUserId: referrer.id,
+        referredByCode: normalizedCode,
+        referredAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ),
+    referrerRef.set(
+      {
+        referralCount: admin.firestore.FieldValue.increment(1),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ),
+  ]);
+
+  const updatedUser = serializeDocument(await userRef.get());
+  await notifyReferrerOfSignup(referrer, updatedUser);
+
+  return updatedUser;
 }
 
 async function upsertUser({ id, email, phoneNumber, firebaseUid, authProvider, name }) {
@@ -169,7 +301,7 @@ async function upsertUser({ id, email, phoneNumber, firebaseUid, authProvider, n
   );
 
   await userRef.set(payload, { merge: true });
-  return serializeDocument(await userRef.get());
+  return ensureUserReferralCode(serializeDocument(await userRef.get()));
 }
 
 async function createOtpRequest(payload, purpose) {
@@ -177,6 +309,7 @@ async function createOtpRequest(payload, purpose) {
   const channel = getChannel(payload);
   const identifier = getIdentifier(payload);
   const existingUser = await findUserByContact(channel, identifier);
+  const referralCode = normalizeReferralCode(payload.referralCode);
 
   if (purpose === "signup" && existingUser) {
     throw new ApiError(409, "Account already exists. Please login instead");
@@ -184,6 +317,14 @@ async function createOtpRequest(payload, purpose) {
 
   if (purpose === "login" && !existingUser) {
     throw new ApiError(404, "Account not found. Please sign up first");
+  }
+
+  if (purpose === "signup" && referralCode) {
+    const referrer = await findUserByReferralCode(referralCode);
+
+    if (!referrer) {
+      throw new ApiError(400, "Invalid referral code");
+    }
   }
 
   const otp = generateOtpCode();
@@ -205,6 +346,7 @@ async function createOtpRequest(payload, purpose) {
       verifiedAt: null,
       metadata: {
         name: payload.name?.trim() || null,
+        referralCode,
       },
     })
   );
@@ -312,6 +454,9 @@ async function verifyOtp(payload, purpose, meta = {}) {
 
   const user =
     await findUserByContact(channel, identifier);
+  const referralCode =
+    normalizeReferralCode(payload.referralCode) ||
+    normalizeReferralCode(otpRecord.metadata?.referralCode);
 
   if (purpose === "signup" && user) {
     throw new ApiError(409, "Account already exists. Please login instead");
@@ -321,7 +466,7 @@ async function verifyOtp(payload, purpose, meta = {}) {
     throw new ApiError(404, "Account not found. Please sign up first");
   }
 
-  const savedUser =
+  let savedUser =
     purpose === "signup"
       ? await upsertUser({
           id: null,
@@ -339,6 +484,10 @@ async function verifyOtp(payload, purpose, meta = {}) {
           authProvider: user.authProvider || channel,
           name: buildUserName(payload, user.name || otpRecord.metadata?.name),
         });
+
+  if (purpose === "signup" && referralCode) {
+    savedUser = await applyReferralToUser(savedUser, referralCode);
+  }
 
   return createSessionTokens(savedUser, meta);
 }
@@ -376,7 +525,7 @@ async function loginWithGoogle(payload, meta = {}) {
     (await findUserByEmail(email));
 
   // If the email already belongs to a user, Google sign-in links into that same account instead of creating a duplicate.
-  const user = await upsertUser({
+  let user = await upsertUser({
     id: matchedUser?.id,
     email,
     phoneNumber: matchedUser?.phoneNumber || null,
@@ -384,6 +533,10 @@ async function loginWithGoogle(payload, meta = {}) {
     authProvider: matchedUser?.authProvider || "google",
     name: payload.name?.trim() || decodedToken.name || email.split("@")[0],
   });
+
+  if (!matchedUser && payload.referralCode) {
+    user = await applyReferralToUser(user, payload.referralCode);
+  }
 
   return createSessionTokens(user, meta);
 }
@@ -501,7 +654,7 @@ async function revokeRefreshSession(refreshToken) {
 }
 
 async function getUserById(userId) {
-  const user = await findUserById(userId);
+  const user = await ensureUserReferralCode(await findUserById(userId));
 
   if (!user) {
     throw new ApiError(404, "User not found");

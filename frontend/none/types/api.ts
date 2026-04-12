@@ -55,16 +55,19 @@ export interface ContactIdentifier {
 
 export interface OtpRequestPayload extends ContactIdentifier {
   name?: string;
+  referralCode?: string;
 }
 
 export interface VerifyOtpPayload extends ContactIdentifier {
   otp: string;
   name?: string;
+  referralCode?: string;
 }
 
 export interface GoogleLoginPayload {
   idToken: string;
   name?: string;
+  referralCode?: string;
 }
 
 export interface RefreshSessionPayload {

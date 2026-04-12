@@ -21,6 +21,13 @@ const UserModel = {
       authProvider: input.authProvider || existingData?.authProvider,
       role: input.role || existingData?.role || "user",
       onboarded: input.onboarded ?? existingData?.onboarded ?? false,
+      referralCode: input.referralCode ?? existingData?.referralCode ?? null,
+      referredByUserId:
+        input.referredByUserId ?? existingData?.referredByUserId ?? null,
+      referredByCode:
+        input.referredByCode ?? existingData?.referredByCode ?? null,
+      referredAt: input.referredAt ?? existingData?.referredAt ?? null,
+      referralCount: input.referralCount ?? existingData?.referralCount ?? 0,
       chatPreferences: {
         ...DEFAULT_CHAT_PREFERENCES,
         ...(existingData?.chatPreferences || {}),

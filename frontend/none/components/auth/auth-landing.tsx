@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authApi, AUTH_TOKEN_STORAGE_KEY } from "@/lib/api";
+import { authApi, AUTH_TOKEN_STORAGE_KEY, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
 import {
   createGoogleProvider,
   getFirebaseAuth,
@@ -60,6 +60,7 @@ function ArrowBadge() {
 
 export function AuthLanding() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("signup");
   const [otpMethod, setOtpMethod] = useState<OtpMethod>("email");
   const [name, setName] = useState("");
@@ -70,6 +71,7 @@ export function AuthLanding() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeReferralCode, setActiveReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -82,6 +84,23 @@ export function AuthLanding() {
       router.replace("/home");
     }
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const incomingReferralCode = searchParams.get("ref")?.trim().toUpperCase() || null;
+
+    if (incomingReferralCode) {
+      window.localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, incomingReferralCode);
+      setActiveReferralCode(incomingReferralCode);
+      return;
+    }
+
+    const storedReferralCode = window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY);
+    setActiveReferralCode(storedReferralCode?.trim().toUpperCase() || null);
+  }, [searchParams]);
 
   useEffect(() => {
     setOtpRequested(false);
@@ -98,6 +117,15 @@ export function AuthLanding() {
     window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, accessToken);
   }
 
+  function clearStoredReferralCode() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
+    setActiveReferralCode(null);
+  }
+
   async function handleRequestOtp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
@@ -110,10 +138,12 @@ export function AuthLanding() {
           ? {
               phoneNumber,
               ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
             }
           : {
               email,
               ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
             };
 
       const response =
@@ -146,11 +176,13 @@ export function AuthLanding() {
               phoneNumber,
               otp,
               ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
             }
           : {
               email,
               otp,
               ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
+              ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
             };
 
       const response =
@@ -159,6 +191,9 @@ export function AuthLanding() {
           : await authApi.verifyLoginOtp(payload);
 
       persistSession(response.data.accessToken);
+      if (mode === "signup") {
+        clearStoredReferralCode();
+      }
       router.push("/home");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to verify OTP");
@@ -187,9 +222,13 @@ export function AuthLanding() {
       const response = await authApi.googleLogin({
         idToken,
         ...(name.trim() ? { name: name.trim() } : {}),
+        ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
       });
 
       persistSession(response.data.accessToken);
+      if (mode === "signup") {
+        clearStoredReferralCode();
+      }
       router.push("/home");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to continue with Google");
@@ -255,6 +294,11 @@ export function AuthLanding() {
                   ? "Start your health journey with a clean, secure onboarding flow."
                   : "Access your progress, logs, and reports with the method you prefer."}
               </p>
+              {mode === "signup" && activeReferralCode ? (
+                <div className="mt-4 inline-flex items-center rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-900">
+                  Referral applied: {activeReferralCode}
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-8 space-y-3">

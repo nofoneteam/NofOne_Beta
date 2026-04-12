@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 
 import { DailyGoalsSection } from "@/components/home/daily-goals-section";
-import { ProfileSection } from "@/components/home/profile-section";
 import { PlaceholderSection } from "@/components/home/placeholder-section";
+import { ProfileSection } from "@/components/home/profile-section";
 import { SettingsSection } from "@/components/home/settings-section";
 import { WeeklySummarySection } from "@/components/home/weekly-summary-section";
 import { WeightTrackerSection } from "@/components/home/weight-tracker-section";
@@ -902,12 +902,15 @@ export function DashboardShell() {
       return;
     }
 
-    const prevCal = Math.round(dashboard?.dailyGoals.rawMetrics?.calories ?? metricValue(dashboard, "calories")?.current ?? 0);
+    const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
+    const prevCal = Math.round(
+      dashboard?.dailyGoals.rawMetrics?.calories
+        ?? ((metricValue(dashboard, "calories")?.current ?? 0) + prevExeCal),
+    );
     const prevCrb = Math.round(metricValue(dashboard, "carbs")?.current ?? 0);
     const prevPro = Math.round(metricValue(dashboard, "protein")?.current ?? 0);
     const prevFat = Math.round(metricValue(dashboard, "fat")?.current ?? 0);
     const prevExeMin = Math.round(metricValue(dashboard, "exerciseMinutes")?.current ?? 0);
-    const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
 
     try {
       await logsApi.saveDailyLog({
@@ -1460,9 +1463,19 @@ export function DashboardShell() {
                 </div>
               ) : activeSection === "referral" ? (
                 <div className="mt-5">
-                  <PlaceholderSection
+                  <ReferralSection
                     onBack={handleWeeklyBack}
-                    title="Referral Code"
+                    referralCode={user?.referralCode ?? null}
+                    referralCount={user?.referralCount ?? 0}
+                    referredByCode={user?.referredByCode ?? null}
+                    userName={user?.name ?? "there"}
+                    onShareMessage={(message) =>
+                      toast({
+                        title: "Referral link ready",
+                        description: message,
+                        variant: "success",
+                      })
+                    }
                   />
                 </div>
               ) : activeSection === "terms" ? (
@@ -1669,6 +1682,128 @@ function SidebarPanel({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReferralSection({
+  onBack,
+  onShareMessage,
+  referralCode,
+  referralCount,
+  referredByCode,
+  userName,
+}: {
+  onBack: () => void;
+  onShareMessage: (message: string) => void;
+  referralCode: string | null;
+  referralCount: number;
+  referredByCode: string | null;
+  userName: string;
+}) {
+  const shareUrl = useMemo(() => {
+    if (!referralCode) {
+      return "";
+    }
+
+    if (typeof window !== "undefined") {
+      const url = new URL("/", window.location.origin);
+      url.searchParams.set("ref", referralCode);
+      return url.toString();
+    }
+
+    return `/?ref=${encodeURIComponent(referralCode)}`;
+  }, [referralCode]);
+
+  async function handleCopyLink() {
+    if (!shareUrl || typeof window === "undefined") {
+      return;
+    }
+
+    await navigator.clipboard.writeText(shareUrl);
+    onShareMessage("Referral link copied to your clipboard.");
+  }
+
+  async function handleNativeShare() {
+    if (!shareUrl || typeof window === "undefined") {
+      return;
+    }
+
+    const shareText = `${userName} invited you to join Nofone. Use this link to sign up: ${shareUrl}`;
+
+    if (navigator.share) {
+      await navigator.share({
+        title: "Join Nofone",
+        text: shareText,
+        url: shareUrl,
+      });
+      onShareMessage("Referral link shared successfully.");
+      return;
+    }
+
+    await handleCopyLink();
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-5 pb-10 animate-fade-up">
+      <div className="flex items-center gap-3 px-1">
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[#4b4f55] transition-colors hover:bg-[#f3f3ee]"
+          onClick={onBack}
+          type="button"
+        >
+          <ArrowLeftIcon />
+        </button>
+        <h1 className="text-[32px] font-semibold tracking-tight text-[#171717]">Referral Code</h1>
+      </div>
+
+      <BaseCard className="overflow-hidden p-0">
+        <div className="bg-[linear-gradient(135deg,#1f8a47_0%,#75c18a_100%)] px-6 py-7 text-white">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-white/70">Share your invite</p>
+          <p className="mt-3 max-w-xl text-[28px] font-semibold leading-tight">
+            Invite your friends to NofOne and get notified when they sign up using your referral code.
+          </p>
+        </div>
+        <div className="space-y-5 p-6">
+          <div className="rounded-[22px] border border-[#ecece7] bg-[#fcfcf9] p-5">
+            <p className="text-[13px] font-medium text-[#8b929b]">Your referral code</p>
+            <p className="mt-2 text-[30px] font-semibold tracking-[0.18em] text-[#171717]">
+              {referralCode || "Generating..."}
+            </p>
+            <p className="mt-3 text-[14px] leading-6 text-[#6e757d]">
+              When someone opens your link and creates a new account, that signup is attached back to you.
+            </p>
+          </div>
+
+          <div className="rounded-[22px] border border-[#ecece7] bg-white p-5">
+            <p className="text-[13px] font-medium text-[#8b929b]">Share URL</p>
+            <div className="mt-2 rounded-[16px] bg-[#f5f6f1] px-4 py-3 text-[14px] leading-6 text-[#25292e] break-all">
+              {shareUrl || "Your referral link will appear here once your code is ready."}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button disabled={!shareUrl} onClick={() => void handleCopyLink()} type="button">
+                Copy Link
+              </Button>
+              <Button disabled={!shareUrl} onClick={() => void handleNativeShare()} type="button" variant="outline">
+                Share Link
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <BaseCard className="p-5">
+              <p className="text-[13px] font-medium text-[#8b929b]">Successful referrals</p>
+              <p className="mt-2 text-[32px] font-semibold leading-none text-[#171717]">{referralCount}</p>
+            </BaseCard>
+            <BaseCard className="p-5">
+              <p className="text-[13px] font-medium text-[#8b929b]">You joined with</p>
+              <p className="mt-2 text-[20px] font-semibold leading-none text-[#171717]">
+                {referredByCode || "No referral used"}
+              </p>
+            </BaseCard>
+          </div>
+        </div>
+      </BaseCard>
     </div>
   );
 }
@@ -3110,7 +3245,7 @@ function NutritionModal({
                 />
               </label>
               <label className="block rounded-[12px] border border-[#ecece7] p-2 bg-[#fdfdfa]">
-                <span className="block text-[11px] font-semibold text-[#a0a5ad] uppercase tracking-wider">Burned (kcal)</span>
+                <span className="block text-[11px] font-semibold text-[#a0a5ad] uppercase tracking-wider">Burned (Calories)</span>
                 <input
                   type="number"
                   value={exerciseCal}
@@ -3151,6 +3286,14 @@ function DownloadIcon() {
   return (
     <svg className="h-[14px] w-[14px]" fill="none" viewBox="0 0 24 24">
       <path d="M12 3v13M7 11l5 5 5-5M4 20h16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function ArrowLeftIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+      <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
     </svg>
   );
 }

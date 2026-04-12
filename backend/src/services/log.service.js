@@ -197,7 +197,7 @@ function buildDailyGoals(log, goals) {
     {
       key: "calories",
       label: "Calories",
-      unit: "kcal",
+      unit: "Calories",
       current: Math.max(round((log?.calories ?? 0) - (log?.exerciseCalories ?? 0), 0), 0),
       target: goals.calories,
     },

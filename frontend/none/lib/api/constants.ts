@@ -1,6 +1,7 @@
 export const API_PREFIX = "/api";
 
 export const AUTH_TOKEN_STORAGE_KEY = "auth_access_token";
+export const REFERRAL_CODE_STORAGE_KEY = "auth_referral_code";
 
 export const API_ROUTES = {
   health: "/health",
