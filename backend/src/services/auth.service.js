@@ -14,6 +14,7 @@ const {
 } = require("../utils/firestore");
 const { sendOtpEmail, sendReferralUsedEmail } = require("./email.service");
 const { sendOtpSms } = require("./sms.service");
+const { verifyRecaptchaTokenOptional } = require("./recaptcha.service");
 
 function normalizeEmail(email) {
   return email?.trim().toLowerCase();
@@ -306,6 +307,16 @@ async function upsertUser({ id, email, phoneNumber, firebaseUid, authProvider, n
 
 async function createOtpRequest(payload, purpose) {
   const db = getFirestore();
+  
+  // Verify reCAPTCHA token for bot protection
+  if (payload.recaptchaToken) {
+    await verifyRecaptchaTokenOptional(
+      payload.recaptchaToken,
+      purpose === "signup" ? "signup" : "login",
+      0.5 // Minimum score threshold
+    );
+  }
+  
   const channel = getChannel(payload);
   const identifier = getIdentifier(payload);
   const existingUser = await findUserByContact(channel, identifier);

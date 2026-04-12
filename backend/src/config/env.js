@@ -118,4 +118,9 @@ module.exports = {
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     privateKey: normalizeFirebasePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
   },
+  recaptcha: {
+    secretKey: process.env.RECAPTCHA_SECRET_KEY,
+    siteKey: process.env.RECAPTCHA_SITE_KEY,
+  },
+  isDevelopment: process.env.NODE_ENV !== "production",
 };

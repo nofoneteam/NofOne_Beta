@@ -11,5 +11,6 @@ export const env = {
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || "",
     messagingSenderId:
       process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || "",
+    recaptchaSiteKey: process.env.NEXT_PUBLIC_FIREBASE_RECAPTCHA_SITE_KEY?.trim() || "",
   },
 } as const;

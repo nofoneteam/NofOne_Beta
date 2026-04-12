@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, RecaptchaVerifier } from "firebase/auth";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 import { env } from "@/lib/config/env";
 
@@ -38,6 +39,37 @@ export function getFirebaseApp() {
 
 export function getFirebaseAuth() {
   return getAuth(getFirebaseApp());
+}
+
+/**
+ * Initialize Firebase App Check with reCAPTCHA v3 for bot protection
+ * This provides invisible reCAPTCHA verification without user interaction
+ */
+export function initializeRecaptchaV3() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const app = getFirebaseApp();
+    const recaptchaSiteKey = env.firebase.recaptchaSiteKey;
+
+    if (!recaptchaSiteKey) {
+      console.warn(
+        "reCAPTCHA site key not configured. Set NEXT_PUBLIC_FIREBASE_RECAPTCHA_SITE_KEY in environment variables."
+      );
+      return;
+    }
+
+    // Initialize App Check with reCAPTCHA v3
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    // Silently fail if reCAPTCHA is not available - it's optional for development
+    console.warn("Failed to initialize reCAPTCHA v3:", error);
+  }
 }
 
 export function createPhoneRecaptchaVerifier(container: HTMLElement) {
