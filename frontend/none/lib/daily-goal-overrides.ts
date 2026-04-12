@@ -62,5 +62,6 @@ export function applyDailyGoalOverrides(
   return {
     metrics,
     completionPercent,
+    rawMetrics: summary.rawMetrics,
   };
 }

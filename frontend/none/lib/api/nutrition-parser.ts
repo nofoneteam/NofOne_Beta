@@ -56,6 +56,31 @@ function extractEstimate(
     return 0;
 }
 
+function extractLastEstimate(
+    text: string,
+    patterns: RegExp[],
+): number {
+    for (const pattern of patterns) {
+        const matches = Array.from(text.matchAll(new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`)));
+
+        if (matches.length === 0) {
+            continue;
+        }
+
+        const match = matches[matches.length - 1];
+        const first = Number.parseInt((match[1] || "").replace(/,/g, ""), 10);
+        const second = match[2]
+            ? Number.parseInt(match[2].replace(/,/g, ""), 10)
+            : undefined;
+
+        if (!Number.isNaN(first)) {
+            return toAverageValue(first, second);
+        }
+    }
+
+    return 0;
+}
+
 /**
  * Extracts nutritional data from the assistant's standard output.
  * It looks for typical markdown patterns like lists or tables of macros.
@@ -72,13 +97,13 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         return null;
     }
 
-    const exerciseMinutes = extractEstimate(text, [
+    const exerciseMinutes = extractLastEstimate(text, [
         /(?:exercise minutes)[^\d]*(\d+)/i,
         /(\d+)\s*(?:min|minutes?)\s*(?:exercise|workout)/i,
     ]);
-    const exerciseCalories = extractEstimate(text, [
+    const exerciseCalories = extractLastEstimate(text, [
         /(?:burned calories|calories burned)[^\d]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
-        /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)[^\d]*(?:burned)/i,
+        /(?:burned)[^\d]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)/i,
     ]);
 
     // Strip out exercise lines to prevent them from confusing the food macro parser

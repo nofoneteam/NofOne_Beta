@@ -4,8 +4,6 @@ const GENERAL_ALLOWED_PATTERN =
   /\b(hi|hello|hey|hii|hiii|good morning|good afternoon|good evening|thanks|thank you|ok|okay|cool|great|nice|who are you|what can you do|help|my name is|i am|i'm)\b/i;
 const MEAL_LOG_PATTERN =
   /\b(i had|i ate|i drank|ate|had|drank|for breakfast|for lunch|for dinner|for snack|my breakfast|my lunch|my dinner|my meal|today i had)\b/i;
-const STANDALONE_FOOD_NAME_PATTERN =
-  /\b(chole|bhature|bhatura|dosa|idli|poha|upma|paratha|pizza|burger|pasta|biryani|khichdi|paneer|roti|chapati|naan|dal|rice|rajma|samosa|sandwich|noodles|momos|omelette|omelet|salad|oats|shake|smoothie|coffee|tea|juice)\b/i;
 const CONTEXTUAL_FOLLOW_UP_PATTERN =
   /\b(it|this|that|these|those|same|again|continue|continued|previous|earlier|before|last|above|here|there|also|too|them|they|one|ones|meal|dish|food|lunch|dinner|breakfast|snack|workout|exercise|sleep|water|macros|calories)\b/i;
 const STORED_CONTEXT_PATTERN =
@@ -35,17 +33,38 @@ function messageLooksLikeStandaloneFoodName(message = "") {
     return false;
   }
 
-  if (messageLooksLikeMealLog(normalized) || messageMentionsHealthTopic(normalized)) {
+  if (
+    messageLooksLikeMealLog(normalized) ||
+    messageMentionsHealthTopic(normalized) ||
+    messageIsAllowedGeneralConversation(normalized) ||
+    ABUSIVE_PATTERN.test(normalized)
+  ) {
     return false;
   }
 
-  const words = normalized.split(/\s+/).filter(Boolean);
+  const words = normalized
+    .replace(/[^a-z\s-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const lettersOnly = normalized.replace(/[^a-z]/g, "");
 
   if (words.length === 0 || words.length > 4) {
     return false;
   }
 
-  return STANDALONE_FOOD_NAME_PATTERN.test(normalized);
+  if (lettersOnly.length < MIN_MEANINGFUL_LENGTH) {
+    return false;
+  }
+
+  if (words.some((word) => word.length < 2)) {
+    return false;
+  }
+
+  if (words.every((word) => word.length <= 20 && /[aeiou]/.test(word))) {
+    return true;
+  }
+
+  return false;
 }
 
 function normalizeMessage(message = "") {
