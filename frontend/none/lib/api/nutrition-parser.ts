@@ -56,29 +56,11 @@ function extractEstimate(
     return 0;
 }
 
-function extractLastEstimate(
-    text: string,
-    patterns: RegExp[],
-): number {
-    for (const pattern of patterns) {
-        const matches = Array.from(text.matchAll(new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`)));
-
-        if (matches.length === 0) {
-            continue;
-        }
-
-        const match = matches[matches.length - 1];
-        const first = Number.parseInt((match[1] || "").replace(/,/g, ""), 10);
-        const second = match[2]
-            ? Number.parseInt(match[2].replace(/,/g, ""), 10)
-            : undefined;
-
-        if (!Number.isNaN(first)) {
-            return toAverageValue(first, second);
-        }
-    }
-
-    return 0;
+function removeRecapSections(text: string): string {
+    return text
+        .split(/\n\s*\n/)
+        .filter((section) => !/\b(earlier|previous|previously|recap|recalling|i recall|let'?s review)\b/i.test(section))
+        .join("\n\n");
 }
 
 /**
@@ -88,40 +70,48 @@ function extractLastEstimate(
 export function parseNutritionFromText(text: string): ParsedNutritionData | null {
     if (!text) return null;
 
-    const hasCalories = /calories?/i.test(text) || /kcal/i.test(text);
-    const hasMacros = /(protein|carbs?|fats?)/i.test(text);
-    const hasExercise = /(?:exercise|burned|workout)/i.test(text);
+    const currentTurnText = removeRecapSections(text);
+
+    const hasCalories = /calories?/i.test(currentTurnText) || /kcal/i.test(currentTurnText);
+    const hasMacros = /(protein|carbs?|fats?)/i.test(currentTurnText);
+    const hasExercise = /(?:exercise|burned|workout)/i.test(currentTurnText);
 
     // If it's a general text not talking about food macros or exercise, don't parse it as a block
     if (!hasCalories && !hasMacros && !hasExercise) {
         return null;
     }
 
-    const exerciseMinutes = extractLastEstimate(text, [
+    const exerciseMinutes = extractEstimate(currentTurnText, [
+        /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*exercise minutes\**[^\d]*(\d+)/im,
         /(?:exercise minutes)[^\d]*(\d+)/i,
         /(\d+)\s*(?:min|minutes?)\s*(?:exercise|workout)/i,
     ]);
-    const exerciseCalories = extractLastEstimate(text, [
+    const exerciseCalories = extractEstimate(currentTurnText, [
+        /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*burned calories\**[^\d]*(\d+)(?:\s*[-–]\s*(\d+))?/im,
         /(?:burned calories|calories burned)[^\d]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
         /(?:burned)[^\d]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)/i,
     ]);
 
     // Strip out exercise lines to prevent them from confusing the food macro parser
-    const foodText = text.replace(/^.*(?:burned|exercise minutes).*$/gim, "");
+    const foodText = currentTurnText.replace(/^.*(?:burned|exercise minutes).*$/gim, "");
 
     const totalCalories = extractEstimate(foodText, [
+        /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*calories\**[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/im,
         /(?:total calories|calories|kcal)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
         /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories?)/i,
     ]);
     const totalProtein = extractEstimate(foodText, [
+        /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*protein\**[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/im,
         /(?:total protein|protein)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
         /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*protein/i,
     ]);
     const totalCarbs = extractEstimate(foodText, [
+        /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*(?:carbs|carbohydrates)\**[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/im,
         /(?:total carbs|carbs|carbohydrates)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
         /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:carbs|carbohydrates)/i,
     ]);
     const totalFat = extractEstimate(foodText, [
+        /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*fat\**[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/im,
         /(?:total fat|fat|fats)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/i,
         /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?\s*(?:fat|fats)/i,
     ]);
