@@ -1506,7 +1506,7 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "home" ? (
-                <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
+                <div className="mt-4 grid min-w-0 gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
                   <div className="min-w-0 space-y-4">
                     <CaloriesCard
                       current={Math.round(caloriesMetric?.current ?? 0)}
@@ -1517,7 +1517,7 @@ export function DashboardShell() {
                       target={Math.round(caloriesMetric?.target ?? 0)}
                     />
 
-                    <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1.12fr)_minmax(210px,0.88fr)]">
+                    <div className="grid min-w-0 gap-2 grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:gap-3">
                       <MacrosCard
                         carbs={carbsMetric}
                         fat={fatMetric}
@@ -1899,22 +1899,22 @@ function CaloriesCard({
         <p className="text-[14px] font-semibold text-[#111111]">Calories</p>
       </div>
 
-      <div className="mt-5 grid min-w-0 gap-5 sm:grid-cols-[86px_minmax(0,1fr)]">
+      <div className="mt-5 grid min-w-0 gap-2 grid-cols-[auto_minmax(0,1fr)] sm:gap-5">
         <div
-          className="relative flex h-21.5 w-21.5 items-center justify-center rounded-full"
+          className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full sm:h-21.5 sm:w-21.5"
           style={{
   background: `conic-gradient(#166534 ${progressDegrees}deg, #f2efe8 0deg)`,
 }}
         >
-          <div className="flex h-18.5 w-18.5 items-center justify-center rounded-full bg-white">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white sm:h-18.5 sm:w-18.5">
             <div className="text-center leading-none">
-              <p className="text-[20px] font-semibold text-[#111111]">{remaining}</p>
-              <p className="mt-1 text-[10px] text-[#a0a4aa]">remaining</p>
+              <p className="text-[16px] font-semibold text-[#111111] sm:text-[20px]">{remaining}</p>
+              <p className="mt-0.5 text-[9px] text-[#a0a4aa] sm:mt-1 sm:text-[10px]">remaining</p>
             </div>
           </div>
         </div>
 
-        <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
+        <div className="grid min-w-0 grid-cols-3 gap-1.5 sm:gap-2 md:gap-4">
           <SmallStat label="Food" value={foodCalories} />
           <SmallStat label="Exercise" value={exerciseCalories} />
           <SmallStat accent valueColor="text-green-800" label="Goal" value={target} />
@@ -1957,7 +1957,7 @@ function MacrosCard({
         <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
       </div>
 
-      <div className="mt-5 grid min-w-0 grid-cols-3 gap-3 justify-items-center sm:gap-8">
+      <div className="mt-5 grid min-w-0 grid-cols-3 gap-2 justify-items-center sm:gap-3 md:gap-4">
         <MacroPill label="Carbs" metric={carbs} />
         <MacroPill label="Protein" metric={protein} />
         <MacroPill label="Fat" metric={fat} />
@@ -1991,32 +1991,32 @@ function WaterCard({
   }
 
   return (
-    <BaseCard className="animate-fade-up animation-delay-2 p-4">
+    <BaseCard className="animate-fade-up animation-delay-2 p-3 sm:p-4">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#e7f4ff]" text="text-[#6bb0e7]">
           <WaterIcon />
         </TinyIconCircle>
-        <p className="text-[14px] font-semibold text-[#111111]">Water</p>
+        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Water</p>
       </div>
 
-      <div className="mt-3 text-center">
-        <p className="text-[39px] font-semibold leading-none text-[#111111]">{current}</p>
-        <p className="mt-1 text-[11px] text-[#9ea4ab]">of {target} cups</p>
+      <div className="mt-2 sm:mt-3 text-center">
+        <p className="text-[28px] sm:text-[39px] font-semibold leading-none text-[#111111]">{current}</p>
+        <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-[#9ea4ab]">of {target} cups</p>
       </div>
 
-      <div className="mt-3 flex justify-center gap-1.25">
+      <div className="mt-2 sm:mt-3 flex justify-center gap-1">
         {Array.from({ length: target }).map((_, index) => (
           <span
             key={index}
             className={cn(
-              "h-1.75 w-1.75 rounded-full transition-colors duration-300",
+              "h-1.5 w-1.5 sm:h-1.75 sm:w-1.75 rounded-full transition-colors duration-300",
               index < current ? "bg-[#69afe9]" : "bg-[#d9ecfb]",
             )}
           />
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-2 sm:mt-4 grid grid-cols-2 gap-1.5 sm:gap-2">
         <ActionPill disabled={saving || current <= 0} onClick={onDecrement}>
           -
         </ActionPill>
@@ -2831,11 +2831,11 @@ function SmallStat({
 }) {
   return (
     <div className="text-center">
-      <p className="text-[11px] text-[#a0a5ad]">{label}</p>
-      <p className={cn("mt-2 text-[24px] font-semibold leading-none text-[#111111]", valueColor)}>
+      <p className="text-[10px] sm:text-[11px] text-[#a0a5ad]">{label}</p>
+      <p className={cn("mt-1 sm:mt-2 text-[18px] sm:text-[24px] font-semibold leading-none text-[#111111]", valueColor)}>
         {value}
       </p>
-      <p className={cn("mt-1 text-[11px] text-[#a0a5ad]", accent && "font-medium")}>calories</p>
+      <p className={cn("mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-[#a0a5ad]", accent && "font-medium")}>calories</p>
     </div>
   );
 }
