@@ -1771,7 +1771,7 @@ function ReferralSection({
               {referralCode || "Generating..."}
             </p>
             <p className="mt-3 text-[14px] leading-6 text-[#6e757d]">
-              When someone opens your link and creates a new account, that signup is attached back to you.
+              When someone opens your link and creates a new account, that signup is attached back to you
             </p>
           </div>
 
