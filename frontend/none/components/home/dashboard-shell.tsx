@@ -16,6 +16,10 @@ import {
   Shield,
   UserRound,
   Users,
+  Target,
+  GlassWaterIcon,
+  DropletIcon,
+  Flame,
 } from "lucide-react";
 
 import { DailyGoalsSection } from "@/components/home/daily-goals-section";
@@ -1894,7 +1898,7 @@ function CaloriesCard({
     <BaseCard className="animate-fade-up p-4">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
-          <FlameIcon />
+          <Flame/>
         </TinyIconCircle>
         <p className="text-[14px] font-semibold text-[#111111]">Calories</p>
       </div>
@@ -1952,7 +1956,7 @@ function MacrosCard({
     <BaseCard className="animate-fade-up animation-delay-1 p-4">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
-          <TargetIcon />
+          <Target/>
         </TinyIconCircle>
         <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
       </div>
@@ -1994,7 +1998,7 @@ function WaterCard({
     <BaseCard className="animate-fade-up animation-delay-2 p-3 sm:p-4">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#e7f4ff]" text="text-[#6bb0e7]">
-          <WaterIcon />
+          <DropletIcon/>
         </TinyIconCircle>
         <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Water</p>
       </div>
