@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { ToastProvider } from "@/components/ui/toast";
 import { env } from "@/lib/config/env";
 import "./globals.css";
@@ -15,17 +16,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <head>
-        {/* Firebase reCAPTCHA v3 for invisible bot protection */}
+      <head />
+      <body className="min-h-full flex flex-col">
         {env.firebase.recaptchaSiteKey && (
-          <script
+          <Script
             src={`https://www.google.com/recaptcha/api.js?render=${env.firebase.recaptchaSiteKey}`}
-            async
-            defer
+            strategy="beforeInteractive"
           />
         )}
-      </head>
-      <body className="min-h-full flex flex-col">
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
