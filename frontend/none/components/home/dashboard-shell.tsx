@@ -891,11 +891,9 @@ export function DashboardShell() {
     });
   }
 
-  async function handleCaloriesMacrosUpdate(
-    messageId: string,
+  const handleCaloriesMacrosUpdate = async(messageId: string,
     totals: { calories: number; carbs: number; protein: number; fat: number; exerciseMinutes: number; exerciseCalories: number },
-    dateIso: string,
-  ) {
+    dateIso: string,) => {
     const token = getStoredAccessToken();
     if (!token) return;
 
@@ -1255,11 +1253,11 @@ export function DashboardShell() {
             <>
               <button
                 aria-label="Close sidebar"
-                className="absolute inset-0 z-30 bg-[#6f746d]/12 backdrop-blur-[2px] lg:hidden"
+                className="absolute inset-0 z-[50] bg-[#6f746d]/12 backdrop-blur-[2px] lg:hidden"
                 onClick={() => setSidebarOpen(false)}
                 type="button"
               />
-              <aside className="absolute left-0 top-0 z-40 flex h-full w-70 animate-slide-in flex-col overflow-hidden border-r border-[#ecece7] bg-[#fdfdfa] lg:hidden">
+              <aside className="absolute left-0 top-0 z-[60] flex h-full w-70 animate-slide-in flex-col overflow-hidden border-r border-[#ecece7] bg-[#fdfdfa] lg:hidden">
                 <SidebarPanel
                   activeSection={activeSection}
                   onClose={() => setSidebarOpen(false)}
@@ -1282,9 +1280,9 @@ export function DashboardShell() {
           </aside>
 
           <section className="flex min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
-            <div className="mx-auto flex h-full w-full max-w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 xl:max-w-310 xl:px-8">
+            <div className="mx-auto flex h-full w-full max-w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-4 xl:max-w-310 xl:px-8">
               {activeSection === "home" ? (
-                <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3">
+                <div className="fixed top-0 left-0 right-0 z-50 grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3 bg-white px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 lg:relative lg:top-auto lg:left-auto lg:right-auto lg:z-auto lg:bg-transparent lg:px-0 lg:py-0 lg:mb-0">
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[#000000] transition-colors hover:bg-[#f3f3ee] lg:hidden"
                     onClick={() => setSidebarOpen(true)}
@@ -1346,7 +1344,7 @@ export function DashboardShell() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3">
+                <div className="fixed top-0 left-0 right-0 z-50 grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3 bg-white px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 lg:relative lg:top-auto lg:left-auto lg:right-auto lg:z-auto lg:bg-transparent lg:px-0 lg:py-0 lg:mb-0">
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[#000000] transition-colors hover:bg-[#f3f3ee] lg:hidden"
                     onClick={() => setSidebarOpen(true)}
@@ -1387,8 +1385,9 @@ export function DashboardShell() {
                 </div>
               )}
 
+              <div className="lg:mt-0 mt-11">
               {activeSection === "home" ? (
-                <div className="mt-5 grid grid-cols-7 gap-1.5 sm:gap-2 md:gap-3">
+                <div className="mt-2 grid grid-cols-7 gap-1.5 sm:gap-2 md:gap-3">
                   {weekDates.map((date) => {
                     const active = getIsoDate(date) === selectedIsoDate;
                     return (
@@ -1412,7 +1411,7 @@ export function DashboardShell() {
               ) : null}
 
               {errorMessage ? (
-                <div className="mt-4 rounded-[18px] border border-[#f0d7d7] bg-[#fff4f4] px-4 py-3 text-[13px] text-[#c05454]">
+                <div className="mt-2 rounded-[18px] border border-[#f0d7d7] bg-[#fff4f4] px-4 py-3 text-[13px] text-[#c05454]">
                   {errorMessage}
                 </div>
               ) : null}
@@ -1428,7 +1427,7 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "profile" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <ProfileSection
                     key={profile?.updatedAt ?? profile?.id ?? "profile"}
                     analyzingAi={analyzingProfileAi}
@@ -1444,14 +1443,14 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "weekly" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <WeeklySummarySection
                     onBack={handleWeeklyBack}
                     summary={dashboard?.weeklySummary ?? null}
                   />
                 </div>
               ) : activeSection === "weight" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <WeightTrackerSection
                     loading={weightTrackerLoading}
                     onBack={handleWeightBack}
@@ -1461,14 +1460,14 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "reminders" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <PlaceholderSection
                     onBack={handleWeeklyBack}
                     title="Reminders"
                   />
                 </div>
               ) : activeSection === "referral" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <ReferralSection
                     onBack={handleWeeklyBack}
                     referralCode={user?.referralCode ?? null}
@@ -1485,21 +1484,21 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "terms" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <PlaceholderSection
                     onBack={handleWeeklyBack}
                     title="Terms & Privacy"
                   />
                 </div>
               ) : activeSection === "support" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <PlaceholderSection
                     onBack={handleWeeklyBack}
                     title="Feedback & Support"
                   />
                 </div>
               ) : activeSection === "settings" ? (
-                <div className="mt-5">
+                <div className="mt-2">
                   <SettingsSection
                     loading={profileLoading}
                     onBack={handleSettingsBack}
@@ -1510,7 +1509,7 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "home" ? (
-                <div className="mt-4 grid min-w-0 gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
+                <div className="mt-5 grid min-w-0 gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
                   <div className="min-w-0 space-y-4">
                     <CaloriesCard
                       current={Math.round(caloriesMetric?.current ?? 0)}
@@ -1581,6 +1580,7 @@ export function DashboardShell() {
                   </div>
                 </div>
               ) : null}
+              </div>
             </div>
           </section>
 
@@ -2274,23 +2274,28 @@ function QuickInputCard({
         ) : null}
 
         {/* Text + action row */}
-        <div className="flex items-center gap-2 px-4 py-3">
-          <input
+        <div className="flex gap-2 px-4 py-3 items-center">
+          <textarea
             className={cn(
-              "min-w-0 flex-1 bg-transparent text-[14px] text-[#111111] focus:outline-none",
+              "min-w-0 flex-1 bg-transparent text-[14px] text-[#111111] focus:outline-none resize-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
               promptFading ? "placeholder-fade-out" : "placeholder-fade-in",
               "placeholder:text-[#7d848c]",
+              "max-h-40 min-h-[40px]",
             )}
             onChange={(event) => onChange(event.target.value)}
             onFocus={() => onFocusChange(true)}
             onBlur={() => onFocusChange(false)}
             placeholder={chatImagePreview ? "Add a caption…" : prompt}
             value={chatInput}
+            rows={1}
+            style={{
+              overflowY: 'auto',
+            }}
           />
           <button
             aria-label={isListening ? "Stop voice input" : "Start voice input"}
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70",
+              "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70 flex-shrink-0",
               isListening ? "bg-white text-green-800" : "text-[#7d8791]",
             )}
             disabled={chatting}
@@ -2300,7 +2305,7 @@ function QuickInputCard({
             <Mic className={cn("h-4.5 w-4.5", isListening && "animate-pulse")} />
           </button>
           <button
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#111111] transition-colors hover:bg-white/70 disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#111111] transition-colors hover:bg-white/70 disabled:opacity-40 flex-shrink-0"
             disabled={chatting || (!chatInput.trim() && !chatImagePreview)}
             type="submit"
           >
@@ -2309,7 +2314,7 @@ function QuickInputCard({
           <button
             aria-label="Attach image"
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70",
+              "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70 flex-shrink-0",
               chatImagePreview ? "text-green-800" : "text-[#7d8791]",
             )}
             onClick={() => fileInputRef.current?.click()}
@@ -3056,7 +3061,7 @@ function ChatHistoryPanel({
       <p className="px-1 text-[13px] font-semibold text-[#8a9198] uppercase tracking-wide">
         Today&apos;s History
       </p>
-      <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+      <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {sortedHistory.map((msg) => {
           const imageUrl = getChatImageUrl(msg);
 
@@ -3087,7 +3092,7 @@ function ChatHistoryPanel({
             const parsed = parseNutritionFromText(msg.message);
 
             return (
-              <div key={msg.id} className="flex justify-start">
+              <div key={msg.id} className="flex justify-start items-center">
                 <button
                   type="button"
                   onClick={() => onSelectMessage(msg)}
