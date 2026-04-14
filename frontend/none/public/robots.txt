@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /about
+Disallow: /home
+Disallow: /onboarding
+Disallow: /api
+Disallow: /.next
+
+Sitemap: https://nofone.app/sitemap.xml
+
+# Google Search Console
+User-agent: Googlebot
+Allow: /
