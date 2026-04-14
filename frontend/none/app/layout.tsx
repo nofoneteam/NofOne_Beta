@@ -7,6 +7,30 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Nofone",
   description: "Health-focused authentication and progress companion",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
+  manifest: "/manifest.json",
+  openGraph: {
+    title: "Nofone",
+    description: "Health-focused authentication and progress companion",
+    images: [
+      {
+        url: "/logo.png",
+        width: 192,
+        height: 192,
+        alt: "Nofone Logo",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Nofone",
+    description: "Health-focused authentication and progress companion",
+    images: ["/logo.png"],
+  },
 };
 
 export default function RootLayout({

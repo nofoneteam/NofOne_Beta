@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { DateRange } from "react-day-picker";
@@ -1632,10 +1633,13 @@ function SidebarPanel({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-[#ecece7] px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-800 text-[14px] font-semibold text-white">
-            {user?.name?.slice(0, 2).toUpperCase() || "N1"}
-          </div>
-          <p className="text-[16px] font-semibold text-[#111111]">NofOne</p>
+          <Image
+            src="/logo.png"
+            alt="NofOne Logo"
+            width={100}
+            height={100}
+            className="rounded-xl scale-150 ml-4"
+          />
         </div>
         <button
           className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee] lg:hidden"
@@ -2070,10 +2074,14 @@ function ReportCard({
 
   return (
     <BaseCard className="animate-fade-up animation-delay-3 p-4">
-      <div className="flex gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-800 text-[13px] font-semibold text-white">
-          N1
-        </div>
+      <div className="flex gap-4 items-center">
+        <Image
+          src="/logo.png"
+          alt="NofOne Logo"
+          width={100}
+          height={100}
+          className="rounded-xl shrink-0 scale-125"
+        />
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-[#111111]">NofOne</p>
           <p className="mt-1 text-[14px] leading-6 text-[#8e949c]">
@@ -2305,13 +2313,6 @@ function QuickInputCard({
             <Mic className={cn("h-4.5 w-4.5", isListening && "animate-pulse")} />
           </button>
           <button
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#111111] transition-colors hover:bg-white/70 disabled:opacity-40 flex-shrink-0"
-            disabled={chatting || (!chatInput.trim() && !chatImagePreview)}
-            type="submit"
-          >
-            <SendIcon />
-          </button>
-          <button
             aria-label="Attach image"
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70 flex-shrink-0",
@@ -2321,6 +2322,13 @@ function QuickInputCard({
             type="button"
           >
             <CameraIcon />
+          </button>
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#111111] transition-colors hover:bg-white/70 disabled:opacity-40 flex-shrink-0 ml-auto"
+            disabled={chatting || (!chatInput.trim() && !chatImagePreview)}
+            type="submit"
+          >
+            <SendIcon />
           </button>
         </div>
       </form>

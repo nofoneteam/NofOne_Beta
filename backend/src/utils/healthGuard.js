@@ -1,5 +1,5 @@
 const HEALTH_TOPIC_PATTERN =
-  /\b(health|healthy|fitness|fit|nutrition|nutritional|calorie|calories|macro|macros|carb|carbs|protein|fat|fats|fiber|meal|food|diet|exercise|workout|training|muscle|weight|bmi|hydration|water|sleep|vitamin|vitamins|mineral|minerals|body fat|steps|wellness|glucose|blood pressure|cholesterol|diabetes|fasting|intermittent|keto|vegan|vegetarian|gluten|lactose|supplement|protein shake|gym|cardio|steps|running|walking|yoga|meditation|stress|recovery|injury|pain|inflammation)\b/i;
+  /\b(health|healthy|fitness|fit|nutrition|nutritional|calorie|calories|macro|macros|carb|carbs|protein|fat|fats|fiber|meal|food|diet|exercise|workout|training|muscle|weight|bmi|hydration|water|sleep|vitamin|vitamins|mineral|minerals|body fat|steps|wellness|glucose|blood pressure|cholesterol|diabetes|fasting|intermittent|keto|vegan|vegetarian|gluten|lactose|supplement|protein shake|gym|cardio|steps|running|walking|yoga|meditation|stress|recovery|injury|pain|inflammation|dal|makhni|roti|tandoori|dosa|chole|paneer|chicken|fish|meat|vegetables|fruits|rice|bread|pasta|pizza|salad|soup|curry|ate|drank)\b/i;
 const GENERAL_ALLOWED_PATTERN =
   /\b(hi|hello|hey|hii|hiii|good morning|good afternoon|good evening|thanks|thank you|ok|okay|cool|great|nice|who are you|what can you do|help|my name is|i am|i'm)\b/i;
 const MEAL_LOG_PATTERN =
@@ -48,7 +48,7 @@ function messageLooksLikeStandaloneFoodName(message = "") {
     .filter(Boolean);
   const lettersOnly = normalized.replace(/[^a-z]/g, "");
 
-  if (words.length === 0 || words.length > 4) {
+  if (words.length === 0 || words.length > 7) {
     return false;
   }
 

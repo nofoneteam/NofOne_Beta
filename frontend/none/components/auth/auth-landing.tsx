@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
@@ -292,13 +294,17 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         <div className="grid w-full overflow-hidden rounded-4xl border border-green-100 bg-white shadow-[0_20px_60px_rgba(22,101,52,0.08)] lg:grid-cols-[0.92fr_1.08fr]">
           <section className="relative overflow-hidden bg-white p-8 sm:p-10 lg:p-12">
             <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-600 text-lg font-semibold text-white">
-                  N
-                </div>
-                <div>
+              <div className=" flex flex-col items-center gap-1">
+                <Image
+                  src="/logo.png"
+                  alt="NofOne Logo"
+                  width={125}
+                  height={125}
+                  className="rounded-2xl scale-150"
+                />
+                <div className="-mt-6">
                   <p className="text-base font-semibold text-green-950">Nofone</p>
-                  <p className="text-sm text-green-700/75">Health companion</p>
+                  <p className="text-sm font-medium text-green-800">Health companion</p>
                 </div>
               </div>
               
