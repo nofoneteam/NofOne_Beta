@@ -91,6 +91,7 @@ export function OnboardingFlow() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<HealthProfileWithUser | null>(null);
   const [form, setForm] = useState({
+    name: "",
     age: "",
     gender: "",
     height: "",
@@ -129,6 +130,7 @@ export function OnboardingFlow() {
 
         setProfile(profileResponse.data);
         setForm({
+          name: profileResponse.data.user?.name ?? "",
           age: profileResponse.data.age != null ? String(profileResponse.data.age) : "",
           gender: profileResponse.data.gender ?? "",
           height: profileResponse.data.height != null ? String(profileResponse.data.height) : "",
@@ -197,10 +199,10 @@ export function OnboardingFlow() {
     const weight = Number(form.weight);
     const targetWeight = form.targetWeight ? Number(form.targetWeight) : null;
 
-    if (!age || !height || !weight || !form.activityLevel || !form.goal) {
+    if (!form.name || !age || !height || !weight || !form.activityLevel || !form.goal) {
       toast({
         title: "Missing fields",
-        description: "Please complete the core health details before continuing.",
+        description: "Please complete your name and core health details before continuing.",
         variant: "error",
       });
       return;
@@ -211,6 +213,7 @@ export function OnboardingFlow() {
     try {
       const bmi = calculateBmi(weight, height);
       const payload: UpsertHealthProfilePayload = {
+        name: form.name.trim() || null,
         age,
         gender: form.gender || null,
         height,
@@ -325,6 +328,14 @@ export function OnboardingFlow() {
 
               <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
                 <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Name">
+                    <Input
+                      onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="eg. Alex John"
+                      type="text"
+                      value={form.name}
+                    />
+                  </Field>
                   <Field label="Age">
                     <Input
                       min="1"
@@ -334,6 +345,9 @@ export function OnboardingFlow() {
                       value={form.age}
                     />
                   </Field>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Gender">
                     <select
                       className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"

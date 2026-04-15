@@ -14,7 +14,7 @@ const UserModel = {
 
   createPayload(input, existingData = null) {
     return removeUndefinedValues({
-      name: input.name || existingData?.name || "User",
+      name: input.name ?? existingData?.name ?? null,
       email: input.email ?? existingData?.email ?? null,
       phoneNumber: input.phoneNumber ?? existingData?.phoneNumber ?? null,
       firebaseUid: input.firebaseUid ?? existingData?.firebaseUid ?? null,

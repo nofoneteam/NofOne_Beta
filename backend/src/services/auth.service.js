@@ -78,11 +78,7 @@ function buildUserName(payload, fallbackName) {
     return fallbackName.trim();
   }
 
-  if (payload.email) {
-    return normalizeEmail(payload.email).split("@")[0];
-  }
-
-  return "User";
+  return null;
 }
 
 function signAccessToken(user) {
@@ -542,7 +538,7 @@ async function loginWithGoogle(payload, meta = {}) {
     phoneNumber: matchedUser?.phoneNumber || null,
     firebaseUid: decodedToken.uid,
     authProvider: matchedUser?.authProvider || "google",
-    name: payload.name?.trim() || decodedToken.name || email.split("@")[0],
+    name: payload.name?.trim() || decodedToken.name || null,
   });
 
   if (!matchedUser && payload.referralCode) {
@@ -593,7 +589,7 @@ async function loginWithPhone(payload, meta = {}) {
     name:
       payload.name?.trim() ||
       matchedUser?.name ||
-      (phoneNumber.startsWith("+") ? `User ${phoneNumber.slice(-4)}` : "User"),
+      null,
   });
 
   if (payload.mode === "signup" && payload.referralCode) {

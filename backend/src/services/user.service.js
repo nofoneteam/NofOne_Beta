@@ -34,11 +34,17 @@ async function upsertHealthProfile(userId, payload) {
 
   await profileRef.set(profilePayload, { merge: true });
   // Once the user has saved their health profile, the frontend can treat onboarding as complete.
+  const userUpdatePayload = {
+    onboarded: true,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (payload.name) {
+    userUpdatePayload.name = payload.name;
+  }
+
   await db.collection(UserModel.collectionName).doc(userId).set(
-    {
-      onboarded: true,
-      updatedAt: new Date().toISOString(),
-    },
+    userUpdatePayload,
     { merge: true }
   );
   refreshUserContextSummary(userId).catch(() => null);

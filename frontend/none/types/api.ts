@@ -82,6 +82,7 @@ export interface RefreshSessionPayload {
 }
 
 export interface UpsertHealthProfilePayload {
+  name?: string | null;
   age: number;
   gender?: string | null;
   height: number;

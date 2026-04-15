@@ -323,6 +323,7 @@ export function DashboardShell() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarPosition, setCalendarPosition] = useState({ top: 0, left: 0 });
+  const [chatHistoryModalOpen, setChatHistoryModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMode, setReportMode] = useState<ReportModalMode>("view");
@@ -857,9 +858,7 @@ export function DashboardShell() {
         response.data.userMessage,
         response.data.assistantMessage,
       ]);
-      if (parseNutritionFromText(response.data.assistantMessage.message)) {
-        setSelectedMessage(response.data.assistantMessage);
-      }
+      setSelectedMessage(response.data.assistantMessage);
       setChatInput("");
     } catch (error) {
       showErrorToast("Unable to send message", error);
@@ -1281,7 +1280,7 @@ export function DashboardShell() {
           </aside>
 
           <section className="flex min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
-            <div className="mx-auto flex h-full w-full max-w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-4 xl:max-w-310 xl:px-8">
+            <div className="mx-auto flex h-full w-full max-w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto px-4 py-4 pb-32 sm:px-5 sm:py-5 sm:pb-32 md:px-6 md:py-4 md:pb-32 xl:max-w-310 xl:px-8 xl:pb-32">
               {activeSection === "home" ? (
                 <div className="fixed top-0 left-0 right-0 z-50 grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3 bg-white px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 lg:relative lg:top-auto lg:left-auto lg:right-auto lg:z-auto lg:bg-transparent lg:px-0 lg:py-0 lg:mb-0">
                   <button
@@ -1549,27 +1548,14 @@ export function DashboardShell() {
                   </div>
 
                   <div className="min-w-0 space-y-4">
-                    <QuickInputCard
-                      chatImage={chatImage}
-                      chatImagePreview={chatImagePreview}
-                      chatting={chatting}
-                      chatInput={chatInput}
-                      onChange={setChatInput}
-                      onFocusChange={setChatFocused}
-                    onImageRemove={handleImageRemove}
-                    onImageSelect={handleImageSelect}
-                    onSpeechUnavailable={handleSpeechUnavailable}
-                    prompt={rotatingChatPrompts[promptIndex]}
-                    promptFading={promptFading}
-                    onSubmit={handleQuickChatSubmit}
-                    />
-
-                    <ChatHistoryPanel
-                      history={chatHistory}
-                      loading={historyLoading}
-                      loggedMessageIds={loggedNutritionMessageIds}
-                      onSelectMessage={setSelectedMessage}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setChatHistoryModalOpen(true)}
+                      className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-[#f7f7f3] text-[14px] font-semibold text-[#111111] transition-colors hover:bg-[#efefe9]"
+                    >
+                      <MessageSquareText className="h-5 w-5 text-green-600" />
+                      See previous messages
+                    </button>
 
                     <DesktopSummaryCard
                       calories={Math.round(caloriesMetric?.current ?? 0)}
@@ -1583,6 +1569,28 @@ export function DashboardShell() {
               ) : null}
               </div>
             </div>
+            
+            {/* Fixed Chat Input for Home Section */}
+            {activeSection === "home" ? (
+              <div className="fixed bottom-15 left-0 right-0 z-40 mx-auto w-full px-4 pb-4 sm:px-5 md:px-6 lg:left-70 lg:w-[calc(100%-17.5rem)] xl:max-w-310 xl:px-8 pointer-events-none">
+                <div className="pointer-events-auto">
+                  <QuickInputCard
+                    chatImage={chatImage}
+                    chatImagePreview={chatImagePreview}
+                    chatting={chatting}
+                    chatInput={chatInput}
+                    onChange={setChatInput}
+                    onFocusChange={setChatFocused}
+                    onImageRemove={handleImageRemove}
+                    onImageSelect={handleImageSelect}
+                    onSpeechUnavailable={handleSpeechUnavailable}
+                    prompt={rotatingChatPrompts[promptIndex]}
+                    promptFading={promptFading}
+                    onSubmit={handleQuickChatSubmit}
+                  />
+                </div>
+              </div>
+            ) : null}
           </section>
 
           {reportOpen ? (
@@ -1597,6 +1605,31 @@ export function DashboardShell() {
               shareMessage={shareMessage}
               sharing={sharing}
             />
+          ) : null}
+
+          {chatHistoryModalOpen ? (
+            <div className="absolute inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2c2f32]/18 p-0 sm:p-4 backdrop-blur-[2px]">
+              <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] sm:rounded-[28px]">
+                <div className="flex items-start justify-between border-b border-[#ecece7] px-6 py-4">
+                  <p className="text-[16px] font-semibold text-[#111111]">Previous Messages</p>
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee]"
+                    onClick={() => setChatHistoryModalOpen(false)}
+                    type="button"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto w-full bg-[#fcfcf9] p-4">
+                  <ChatHistoryPanel
+                    history={chatHistory}
+                    loading={historyLoading}
+                    loggedMessageIds={loggedNutritionMessageIds}
+                    onSelectMessage={setSelectedMessage}
+                  />
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {selectedMessage ? (
@@ -1835,29 +1868,39 @@ function DesktopSummaryCard({
 }) {
   if (loading) {
     return (
-      <BaseCard className="p-5">
+      <BaseCard className="p-4">
         <ShimmerLine className="h-4 w-28" />
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <ShimmerBlock className="h-28" />
-          <ShimmerBlock className="h-28" />
+        <div className="mt-3 flex gap-3">
+          <ShimmerBlock className="h-24 flex-1" />
+          <ShimmerBlock className="h-24 flex-1" />
         </div>
       </BaseCard>
     );
   }
 
   return (
-    <BaseCard className="p-5">
-      <p className="text-[14px] font-semibold text-[#111111]">Daily overview</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[20px] bg-[#f7f7f3] p-4">
-          <p className="text-[12px] uppercase tracking-[0.16em] text-[#9ea4ab]">Completion</p>
-          <p className="mt-2 text-[30px] font-semibold leading-none text-[#111111]">{completion}%</p>
-          <p className="mt-2 text-[13px] text-[#8e949c]">Calories {calories}/{target}</p>
+    <BaseCard className="p-4">
+      <p className="text-[13px] font-semibold text-[#111111]">Daily overview</p>
+      <div className="mt-3 flex flex-row gap-3">
+        <div className="flex-1 rounded-[16px] bg-[#f7f7f3] p-3 flex flex-col justify-between">
+          <div className="flex items-center gap-1.5">
+            <Target className="h-4 w-4 text-green-600" />
+            <p className="text-[11px] uppercase tracking-[0.12em] text-[#9ea4ab]">Completion</p>
+          </div>
+          <div className="mt-2">
+            <p className="text-[24px] font-semibold leading-none text-[#111111]">{completion}%</p>
+            <p className="mt-1 text-[11px] text-[#8e949c]">Calories {calories}/{target}</p>
+          </div>
         </div>
-        <div className="rounded-[20px] bg-[#f7f7f3] p-4">
-          <p className="text-[12px] uppercase tracking-[0.16em] text-[#9ea4ab]">Hydration</p>
-          <p className="mt-2 text-[30px] font-semibold leading-none text-[#111111]">{water}</p>
-          <p className="mt-2 text-[13px] text-[#8e949c]">cups logged today</p>
+        <div className="flex-1 rounded-[16px] bg-[#f7f7f3] p-3 flex flex-col justify-between">
+          <div className="flex items-center gap-1.5">
+            <DropletIcon className="h-4 w-4 text-[#6bb0e7]" />
+            <p className="text-[11px] uppercase tracking-[0.12em] text-[#9ea4ab]">Hydration</p>
+          </div>
+          <div className="mt-2">
+            <p className="text-[24px] font-semibold leading-none text-[#111111]">{water}</p>
+            <p className="mt-1 text-[11px] text-[#8e949c]">cups logged today</p>
+          </div>
         </div>
       </div>
     </BaseCard>

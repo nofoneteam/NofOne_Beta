@@ -19,6 +19,8 @@ import {
   isFirebaseClientConfigured,
 } from "@/lib/firebase/client";
 import { cn } from "@/lib/utils";
+import { PhoneNumberInput } from "./phone-number-input";
+import type { CountryConfig } from "@/lib/countryData";
 
 type AuthMode = "login" | "signup";
 type OtpMethod = "email" | "phone";
@@ -66,7 +68,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("signup");
   const [otpMethod, setOtpMethod] = useState<OtpMethod>("email");
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
@@ -177,7 +178,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
       const payload =
         {
           email,
-          ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
           ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
         };
 
@@ -215,7 +215,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         const response = await authApi.phoneLogin({
           idToken,
           mode,
-          ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
           ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
         });
 
@@ -232,7 +231,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         {
           email,
           otp,
-          ...(mode === "signup" && name.trim() ? { name: name.trim() } : {}),
           ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
         };
 
@@ -272,7 +270,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
       const idToken = await credential.user.getIdToken();
       const response = await authApi.googleLogin({
         idToken,
-        ...(name.trim() ? { name: name.trim() } : {}),
         ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
       });
 
@@ -413,37 +410,32 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
 
             {!otpRequested ? (
               <form className="space-y-5" onSubmit={handleRequestOtp}>
-                {mode === "signup" ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full name</Label>
-                    <Input
-                      id="name"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder="Anubhav Mishra"
-                      required
-                    />
-                  </div>
-                ) : null}
-
                 <div className="space-y-2">
                   <Label htmlFor="contact">
                     {otpMethod === "phone" ? "Phone number" : "Email address"}
                   </Label>
-                  <Input
-                    id="contact"
-                    value={otpMethod === "phone" ? phoneNumber : email}
-                    onChange={(event) =>
-                      otpMethod === "phone"
-                        ? setPhoneNumber(event.target.value)
-                        : setEmail(event.target.value)
-                    }
-                    placeholder={
-                      otpMethod === "phone" ? "+91 98765 43210" : "name@example.com"
-                    }
-                    type={otpMethod === "phone" ? "tel" : "email"}
-                    required
-                  />
+                  {otpMethod === "phone" ? (
+                    <PhoneNumberInput
+                      id="contact"
+                      value={phoneNumber}
+                      onChange={setPhoneNumber}
+                      onCountryChange={(country: CountryConfig) => {
+                        // Optional: handle country change if needed
+                      }}
+                      placeholder="eg. 77777"
+                      label=""
+                      required
+                    />
+                  ) : (
+                    <Input
+                      id="contact"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="name@example.com"
+                      type="email"
+                      required
+                    />
+                  )}
                 </div>
 
                 <Button className="mt-2 w-full" disabled={isSubmitting} size="lg" type="submit">
@@ -456,19 +448,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
               </form>
             ) : (
               <form className="space-y-5" onSubmit={handleVerifyOtp}>
-                {mode === "signup" ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="verify-name">Full name</Label>
-                    <Input
-                      id="verify-name"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder="Anubhav Mishra"
-                      required
-                    />
-                  </div>
-                ) : null}
-
                 <div className="space-y-2">
                   <Label htmlFor="otp">One-time password</Label>
                   <Input
