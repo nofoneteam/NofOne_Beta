@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { ToastProvider } from "@/components/ui/toast";
 import { env } from "@/lib/config/env";
+import { OneSignalProvider } from "@/components/providers/onesignal-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -100,7 +101,9 @@ export default function RootLayout({
             strategy="beforeInteractive"
           />
         )}
-        <ToastProvider>{children}</ToastProvider>
+        <OneSignalProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </OneSignalProvider>
       </body>
     </html>
   );

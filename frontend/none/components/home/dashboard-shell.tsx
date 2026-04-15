@@ -28,6 +28,7 @@ import { PlaceholderSection } from "@/components/home/placeholder-section";
 import { ProfileSection } from "@/components/home/profile-section";
 import { SettingsSection } from "@/components/home/settings-section";
 import { WeeklySummarySection } from "@/components/home/weekly-summary-section";
+import { ReminderSection } from "@/components/home/reminder-section";
 import { WeightTrackerSection } from "@/components/home/weight-tracker-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -559,6 +560,14 @@ export function DashboardShell() {
     void loadProfileData();
     void loadWeightTracker(selectedIsoDate);
   }, [loadDashboard, loadChatHistory, loadProfileData, loadWeightTracker, selectedIsoDate]);
+
+  useEffect(() => {
+    if (user?.id && typeof window !== "undefined") {
+      import("react-onesignal").then((OneSignal) => {
+         OneSignal.default.login(user.id).catch(e => console.warn("OneSignal login failed", e));
+      }).catch(e => console.warn(e));
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1461,10 +1470,7 @@ export function DashboardShell() {
                 </div>
               ) : activeSection === "reminders" ? (
                 <div className="mt-2">
-                  <PlaceholderSection
-                    onBack={handleWeeklyBack}
-                    title="Reminders"
-                  />
+                  <ReminderSection onBack={handleWeeklyBack} />
                 </div>
               ) : activeSection === "referral" ? (
                 <div className="mt-2">
@@ -1572,7 +1578,7 @@ export function DashboardShell() {
             
             {/* Fixed Chat Input for Home Section */}
             {activeSection === "home" ? (
-              <div className="fixed bottom-15 left-0 right-0 z-40 mx-auto w-full px-4 pb-4 sm:px-5 md:px-6 lg:left-70 lg:w-[calc(100%-17.5rem)] xl:max-w-310 xl:px-8 pointer-events-none">
+              <div className="fixed bottom-4 left-0 right-0 z-40 mx-auto w-full px-4 pb-4 sm:px-5 md:px-6 lg:left-70 lg:w-[calc(100%-17.5rem)] xl:max-w-310 xl:px-8 pointer-events-none">
                 <div className="pointer-events-auto">
                   <QuickInputCard
                     chatImage={chatImage}

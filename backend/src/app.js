@@ -9,6 +9,7 @@ const userRoutes = require("./routes/user.routes");
 const logRoutes = require("./routes/log.routes");
 const chatRoutes = require("./routes/chat.routes");
 const adminRoutes = require("./routes/admin.routes");
+const reminderRoutes = require("./routes/reminder.routes");
 const requestLogger = require("./middlewares/requestLogger.middleware");
 const rateLimiter = require("./middlewares/rateLimiter.middleware");
 const notFound = require("./middlewares/notFound.middleware");
@@ -30,7 +31,12 @@ app.use(
 );
 app.use(helmet());
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(rateLimiter);
@@ -48,6 +54,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/logs", logRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reminder", reminderRoutes);
 app.get("/test" , (req, res)=>{
   res.json({message: "Test route is working!"});
 })

@@ -5,4 +5,5 @@ export * from "@/lib/api/constants";
 export * from "@/lib/api/logs";
 export * from "@/lib/api/user";
 export * from "@/lib/api/api-fetch";
+export * from "@/lib/api/reminder";
 
