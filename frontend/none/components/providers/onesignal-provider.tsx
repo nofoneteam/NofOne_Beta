@@ -17,10 +17,7 @@ export function OneSignalProvider({ children }: { children: React.ReactNode }) {
       try {
         await OneSignal.init({
           appId,
-          allowLocalhostAsSecureOrigin: true, // for dev
-          notifyButton: {
-            enable: true,
-          },
+          allowLocalhostAsSecureOrigin: true,
         });
         setInitialized(true);
       } catch (err) {
