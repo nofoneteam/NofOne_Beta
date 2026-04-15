@@ -19,7 +19,7 @@ export interface Reminder {
 
 export const reminderApi = {
   createReminder: (data: ReminderPayload, token: string) => {
-    return apiFetch<{ data: Reminder }>("/api/reminder/create", {
+    return apiFetch<Reminder>("/api/reminder/create", {
       method: "POST",
       body: data,
       token,
@@ -27,7 +27,7 @@ export const reminderApi = {
   },
 
   getReminders: (token: string) => {
-    return apiFetch<{ data: Reminder[] }>("/api/reminder", {
+    return apiFetch<Reminder[]>("/api/reminder", {
       method: "GET",
       token,
     });
