@@ -16,8 +16,13 @@ export const metadata: Metadata = {
     canonical: "https://nofone.app",
   },
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: "/favicon.jpg", type: "image/jpeg" },
+    ],
+    apple: [
+      { url: "/favicon.jpg", type: "image/jpeg" },
+    ],
+    shortcut: "/favicon.jpg",
   },
   manifest: "/manifest.json",
   openGraph: {
