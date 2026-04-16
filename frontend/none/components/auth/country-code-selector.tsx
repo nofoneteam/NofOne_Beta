@@ -59,7 +59,8 @@ export function CountryCodeSelector({ value, onChange, disabled = false }: Count
         )}
       >
         <span className="text-lg">{value.flag}</span>
-        <span className="hidden text-green-700 sm:inline">{value.dialCode}</span>
+        <span className="font-bold text-green-950">{value.code}</span>
+        <span className="text-green-700">{value.dialCode}</span>
         <ChevronDown
           className={cn(
             "h-4 w-4 text-green-600 transition-transform",
@@ -70,7 +71,7 @@ export function CountryCodeSelector({ value, onChange, disabled = false }: Count
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-2 rounded-lg border border-green-200 bg-white shadow-lg">
+        <div className="absolute top-full left-0 z-[9999] mt-2 rounded-lg border border-green-200 bg-white shadow-lg min-w-[18rem]">
           {/* Search Input */}
           <div className="border-b border-green-100 p-3">
             <div className="relative">
@@ -104,12 +105,11 @@ export function CountryCodeSelector({ value, onChange, disabled = false }: Count
                   )}
                 >
                   <span className="text-lg">{country.flag}</span>
-                  <div className="flex-1">
-                    <div className="font-medium text-green-950">{country.name}</div>
-                    <div className="text-xs text-green-700">{country.dialCode}</div>
-                  </div>
+                  <span className="font-bold text-green-950">{country.code}</span>
+                  <span className="text-green-700 text-xs">{country.dialCode}</span>
+                  <span className="flex-1 text-sm text-green-800">{country.name}</span>
                   {value.code === country.code && (
-                    <div className="h-2 w-2 rounded-full bg-green-600" />
+                    <div className="h-2 w-2 rounded-full bg-green-600 flex-shrink-0" />
                   )}
                 </button>
               ))

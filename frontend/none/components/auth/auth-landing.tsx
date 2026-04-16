@@ -289,7 +289,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
     <main className="min-h-screen bg-[#eef8ef] px-4 py-6 text-green-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-7xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-4xl border border-green-100 bg-white shadow-[0_20px_60px_rgba(22,101,52,0.08)] lg:grid-cols-[0.92fr_1.08fr]">
-          <section className="relative overflow-hidden bg-white p-8 sm:p-10 lg:p-12">
+          <section className="relative bg-white p-8 sm:p-10 lg:p-12">
             <div className="flex items-center justify-between">
               <div className=" flex flex-col items-center gap-1">
                 <Image

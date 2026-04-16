@@ -1578,7 +1578,7 @@ export function DashboardShell() {
             
             {/* Fixed Chat Input for Home Section */}
             {activeSection === "home" ? (
-              <div className="fixed bottom-4 left-0 right-0 z-40 mx-auto w-full px-4 pb-4 sm:px-5 md:px-6 lg:left-70 lg:w-[calc(100%-17.5rem)] xl:max-w-310 xl:px-8 pointer-events-none">
+              <div className="fixed bottom-2 left-0 right-0 z-40 mx-auto w-full px-4 pb-4 sm:px-5 md:px-6 lg:left-70 lg:w-[calc(100%-17.5rem)] xl:max-w-310 xl:px-8 pointer-events-none">
                 <div className="pointer-events-auto">
                   <QuickInputCard
                     chatImage={chatImage}
