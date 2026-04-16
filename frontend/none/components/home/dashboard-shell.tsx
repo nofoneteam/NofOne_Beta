@@ -123,14 +123,35 @@ function getChatImageUrl(message: ChatMessage) {
 }
 
 function renderInlineFormattedText(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  // Split by bold (**...), inline code (`...`), or italic (*...* or _..._)
+  // Using non-greedy match .*? allows multiple formats on the same line to work perfectly
+  const parts = text.split(/(\*\*.*?\*\*|`.*?`|\*(?!\*).*?(?<!\*)\*|_[^_]+_)/g);
 
   return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+    if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
       return (
         <strong key={`${part}-${index}`} className="font-semibold text-[#111111]">
           {part.slice(2, -2)}
         </strong>
+      );
+    }
+
+    if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
+      return (
+        <code key={`${part}-${index}`} className="rounded bg-[#f3efe7] px-1.5 py-0.5 font-mono text-[13px] text-[#8542c4]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+
+    if (
+      (part.startsWith("*") && part.endsWith("*") && part.length >= 2) ||
+      (part.startsWith("_") && part.endsWith("_") && part.length >= 2)
+    ) {
+      return (
+        <em key={`${part}-${index}`} className="italic text-[#111111]">
+          {part.slice(1, -1)}
+        </em>
       );
     }
 
@@ -150,6 +171,7 @@ function FormattedAssistantText({
     | { type: "paragraph"; text: string }
     | { type: "ordered"; items: string[] }
     | { type: "unordered"; items: string[] }
+    | { type: "heading"; level: number; text: string }
   > = [];
 
   let index = 0;
@@ -157,6 +179,17 @@ function FormattedAssistantText({
     const trimmed = lines[index].trim();
 
     if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)/);
+    if (headingMatch) {
+      blocks.push({
+        type: "heading",
+        level: headingMatch[1].length,
+        text: headingMatch[2],
+      });
       index += 1;
       continue;
     }
@@ -209,6 +242,23 @@ function FormattedAssistantText({
                 </li>
               ))}
             </ul>
+          );
+        }
+
+        if (block.type === "heading") {
+          const Tag = `h${block.level}` as keyof React.JSX.IntrinsicElements;
+          const classes = [
+            "font-bold text-[#111111]",
+            block.level === 1 ? "text-[20px] mt-4 mb-2" : "",
+            block.level === 2 ? "text-[18px] mt-3 mb-1.5" : "",
+            block.level === 3 ? "text-[16px] mt-2 mb-1" : "",
+            block.level >= 4 ? "text-[15px] mt-2 mb-1" : "",
+          ].filter(Boolean).join(" ");
+
+          return (
+            <Tag key={`heading-${blockIndex}`} className={classes}>
+              {renderInlineFormattedText(block.text)}
+            </Tag>
           );
         }
 
