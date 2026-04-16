@@ -154,6 +154,16 @@ async function analyzeImageWithGroqDirectly(payload) {
     apiKey: env.groq.apiKey,
   });
 
+  const macroFormatInstruction = `
+
+CRITICAL OUTPUT FORMAT — You MUST output the macro breakdown in EXACTLY this format, with no variations, approximations, tildes, or ranges:
+- Calories: [single integer]
+- Protein: [X]g
+- Carbs: [X]g
+- Fat: [X]g
+
+If you cannot determine exact values, use your best single-value estimate. Never write "~350" or "350-400" — always write a single integer like "350".`;
+
   const completion = await groq.chat.completions.create({
     model: env.groq.visionModel,
     temperature: 0.1,
@@ -161,7 +171,7 @@ async function analyzeImageWithGroqDirectly(payload) {
       {
         role: "system",
         content:
-          "You are a strict health and fitness image analyst. Only describe health-relevant or nutrition-relevant details such as food items, meals, ingredients, calorie estimates, macro estimates, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis.",
+          "You are a strict health and fitness image analyst. Identify all food items, meals, or ingredients visible in the image and provide precise nutritional estimates. Only describe health-relevant details such as food items, meals, ingredients, calorie estimates, macro estimates, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis." + macroFormatInstruction,
       },
       {
         role: "user",
@@ -169,8 +179,8 @@ async function analyzeImageWithGroqDirectly(payload) {
           {
             type: "text",
             text:
-              payload.message ||
-              "Analyze this image only for health, nutrition, macros, meal composition, or fitness relevance.",
+              (payload.message ||
+              "Analyze this image for food items, meal composition, and provide the nutritional breakdown including calories, protein, carbs, and fat.") + macroFormatInstruction,
           },
           {
             type: "image_url",
@@ -230,43 +240,20 @@ async function generateHealthAssistantReply(conversationContext, payload) {
     return extractTextContent(response.content);
   }
 
+  // Image requests go directly to the Groq vision API — bypassing the MCP agent loop
+  // entirely. The agent path (spawn MCP stdio process + two LLM round-trips) added
+  // 5-15 s of latency with no quality benefit over a single direct vision call.
   try {
-    const agent = await getHealthAgent();
-    // Only image requests pay the MCP/tool overhead because they may need the vision tool.
-    const result = await agent.invoke({
-      messages: [
-        ...(systemContextMessage
-          ? [
-              {
-                role: "system",
-                content: systemContextMessage,
-              },
-            ]
-          : []),
-        ...mapHistoryToMessages(recentMessages),
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-    });
+    const directVisionReply = await analyzeImageWithGroqDirectly(payload);
 
-    return extractAssistantReply(result);
-  } catch (error) {
-    console.log("VISION PIPELINE ERROR:", error.stack || error);
-    try {
-      const directVisionReply = await analyzeImageWithGroqDirectly(payload);
-
-      if (directVisionReply) {
-        return directVisionReply;
-      }
-    } catch (directVisionError) {
-      console.log(
-        "DIRECT VISION FALLBACK ERROR:",
-        directVisionError.stack || directVisionError
-      );
+    if (directVisionReply) {
+      return directVisionReply;
     }
 
+    throw new ApiError(502, "Image analysis returned an empty response. Please retry.");
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.log("VISION ERROR:", error.stack || error);
     throw new ApiError(
       502,
       "Image analysis is temporarily unavailable. Please retry in a moment."

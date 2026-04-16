@@ -36,8 +36,14 @@ function extractEstimate(
     text: string,
     patterns: RegExp[],
 ): number {
+    // Normalise the text: strip tildes, "approximately", "about", "roughly", "~"
+    // so "~350 kcal" and "approximately 350" parse as 350.
+    const normalised = text
+        .replace(/~|≈/g, "")
+        .replace(/\b(approximately|approx\.?|about|roughly|around|estimated|estimate[ds]?)[\s:]*/gi, "");
+
     for (const pattern of patterns) {
-        const match = text.match(pattern);
+        const match = normalised.match(pattern);
 
         if (!match) {
             continue;
@@ -72,12 +78,15 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
 
     const currentTurnText = removeRecapSections(text);
 
-    const hasFood = /(meal|food|eat|ate|breakfast|lunch|dinner|snack|dal|roti|curry|rice|bread|pasta|pizza|salad|soup|dosa|chole|paneer|chicken|fish|meat|vegetables?|fruits?|protein|carbs?|fats?|macr)/i.test(currentTurnText);
-    const hasMacros = /(protein|carbs?|fats?)/i.test(currentTurnText);
+    const hasFood = /(meal|food|eat|ate|breakfast|lunch|dinner|snack|dal|roti|curry|rice|bread|pasta|pizza|salad|soup|dosa|chole|paneer|chicken|fish|meat|vegetables?|fruits?|protein|carbs?|fats?|macr|ingredient|portion|serving|calorie|kcal)/i.test(currentTurnText);
+    const hasMacros = /(protein|carbs?|fats?|calories|kcal)/i.test(currentTurnText);
     const hasExercise = /(?:exercise|burned|workout|exercised|ran|walked|cycled|trained|cardio|gym|run|walk)/i.test(currentTurnText);
 
+    // If the response has macro/calorie lines, treat it as food-related regardless of food keywords
+    const hasMacroLines = /[-*]\s*(?:calories|protein|carbs?|fat)[\s:]/i.test(currentTurnText);
+
     // If it's a general text not talking about food or exercise, don't parse it as a block
-    if (!hasFood && !hasExercise) {
+    if (!hasFood && !hasMacroLines && !hasExercise) {
         return null;
     }
 
@@ -101,14 +110,15 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
     // Check if this is purely exercise-only response (has exercise keywords but no food/meal keywords)
     const isPurelyExercise = hasExercise && !/(meal|food|eat|ate|breakfast|lunch|dinner|snack|dal|roti|curry|rice|bread|pasta|pizza|salad|soup|dosa|chole|paneer|chicken|fish|meat|vegetables?|fruits?)/i.test(currentTurnText);
 
-    if (hasFood && !isPurelyExercise) {
+    if (hasFood || hasMacroLines) {
         // Strip out exercise lines to prevent them from confusing the food macro parser
         const foodText = currentTurnText.replace(/^.*(?:burned|exercise minutes).*$/gim, "");
 
         totalCalories = extractEstimate(foodText, [
             /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*calories\**[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/im,
-            /(?:total calories|kcal)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
-            /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal)/i,
+            /(?:total calories|calories|kcal|cal)[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?/i,
+            /(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:kcal|calories|cal)\b/i,
+            /(\d{3,4})\s*(?:total)?\s*(?:kcal|calories|cal)?/i,
         ]);
         totalProtein = extractEstimate(foodText, [
             /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*protein\**[\s:*_-]*(\d+)(?:\s*[-–]\s*(\d+))?\s*(?:g|grams)?/im,

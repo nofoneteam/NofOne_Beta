@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { DateRange } from "react-day-picker";
@@ -1671,7 +1672,11 @@ function SidebarPanel({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-[#ecece7] px-5 py-5">
-        <div className="flex items-center gap-3">
+        <Link
+            href="/about"
+            title="About Nofone"
+            className="flex items-center gap-3 rounded-xl transition-opacity hover:opacity-75"
+          >
           <Image
             src="/logo.png"
             alt="NofOne Logo"
@@ -1679,7 +1684,7 @@ function SidebarPanel({
             height={100}
             className="rounded-xl scale-150 ml-4"
           />
-        </div>
+          </Link>
         <button
           className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee] lg:hidden"
           onClick={onClose}
