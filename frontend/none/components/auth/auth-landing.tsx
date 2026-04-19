@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
 import { signInWithPhoneNumber, signInWithPopup } from "firebase/auth";
+import { ChevronRight, Dumbbell, Heart, Salad, TrendingUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +22,6 @@ import {
 } from "@/lib/firebase/client";
 import { cn } from "@/lib/utils";
 import { PhoneNumberInput } from "./phone-number-input";
-import type { CountryConfig } from "@/lib/countryData";
 
 type AuthMode = "login" | "signup";
 type OtpMethod = "email" | "phone";
@@ -63,6 +64,26 @@ function ArrowBadge() {
     </div>
   );
 }
+
+const aboutHighlights = [
+  {
+    title: "Nourish",
+    description: "Track food and sleep around your own metabolic reality.",
+    icon: Salad,
+  },
+  {
+    title: "Move",
+    description: "Build exercise habits that match your real routine.",
+    icon: Dumbbell,
+  },
+  {
+    title: "Evolve",
+    description: "See how your signals change over time and what actually works.",
+    icon: TrendingUp,
+  },
+];
+
+const aboutPrinciples = ["Ad-free", "Subscription-free", "Community-powered"];
 
 export function AuthLanding({ initialReferralCode }: { initialReferralCode?: string }) {
   const router = useRouter();
@@ -304,7 +325,13 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                   <p className="text-sm font-medium text-green-800">Health companion</p>
                 </div>
               </div>
-              
+              <Link
+                href="/about"
+                className="inline-flex items-center gap-2 rounded-full border border-green-200 px-4 py-2 text-sm font-medium text-green-900 transition-colors hover:border-green-400 hover:bg-green-50"
+              >
+                About
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
 
             <div className="mt-10 flex items-center gap-2 rounded-2xl bg-green-50 p-1">
@@ -419,9 +446,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                       id="contact"
                       value={phoneNumber}
                       onChange={setPhoneNumber}
-                      onCountryChange={(country: CountryConfig) => {
-                        // Optional: handle country change if needed
-                      }}
                       placeholder="eg. 77777"
                       label=""
                       required
@@ -510,57 +534,72 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
 
             <div className="relative flex h-full flex-col justify-between">
               <div className="flex items-start justify-between gap-6">
-                <div className="max-w-sm">
-                  <p className="text-sm font-medium uppercase tracking-[0.22em] text-white/70">
-                    Health-first experience
+                <div className="max-w-xl">
+                  <p className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
+                    n=1 Trial Philosophy
                   </p>
                   <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-                    Built for a calmer, more professional health workflow.
+                    The science of the individual, not the average.
                   </h2>
                   <p className="mt-4 text-base leading-7 text-white/82">
-                    Secure sign-in, guided onboarding, and structured daily tracking all in
-                    one place.
+                    Nofone is built for people whose health, recovery, and routine do not fit a
+                    template. The same thinking behind our About page starts right here.
                   </p>
                 </div>
                 <ArrowBadge />
               </div>
 
               <div className="mt-10 space-y-5">
-                <div className="ml-auto w-full max-w-60 rounded-[28px] bg-white p-5 text-green-950">
-                  <p className="text-sm text-green-700">Today</p>
-                  <p className="mt-2 text-3xl font-semibold">78%</p>
-                  <div className="mt-5 flex items-end gap-2">
-                    <div className="h-8 w-2 rounded-full bg-green-200" />
-                    <div className="h-14 w-2 rounded-full bg-green-500" />
-                    <div className="h-10 w-2 rounded-full bg-green-300" />
-                    <div className="h-16 w-2 rounded-full bg-green-700" />
-                    <div className="h-12 w-2 rounded-full bg-green-400" />
-                  </div>
+                <div className="grid gap-4">
+                  {aboutHighlights.map(({ title, description, icon: Icon }) => (
+                    <div
+                      key={title}
+                      className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-5 text-green-950 shadow-[0_10px_30px_rgba(11,61,34,0.08)]"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-800">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold">{title}</p>
+                        <p className="mt-1 text-sm leading-6 text-green-900/70">{description}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+                <div className="grid gap-4 sm:grid-cols-[1.15fr_0.85fr]">
                   <div className="rounded-[28px] bg-white p-6 text-green-950">
-                    <div className="h-1.5 w-16 rounded-full bg-green-400" />
-                    <p className="mt-6 text-xl font-semibold">Your data, your routine</p>
-                    <p className="mt-3 text-sm leading-6 text-green-900/70">
-                      Progress logs, reports, and personal insights stay organized behind a
-                      clean authentication flow that feels built for a product, not a demo.
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-green-100 text-green-800">
+                        <Heart className="h-5 w-5" />
+                      </div>
+                      <p className="text-xl font-semibold">What makes Nofone different</p>
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-green-900/70">
+                      Built to stay calm, useful, and personal from the first screen through daily
+                      tracking.
                     </p>
                   </div>
 
                   <div className="rounded-[28px] bg-[#75c18a] p-5 text-white">
-                    <p className="text-sm font-medium text-white/80">Weekly goals</p>
+                    <p className="text-sm font-medium text-white/80">About Nofone</p>
                     <div className="mt-5 space-y-3">
-                      <div className="rounded-2xl bg-white/18 px-3 py-2 text-sm">
-                        Water intake
-                      </div>
-                      <div className="rounded-2xl bg-white/18 px-3 py-2 text-sm">
-                        Sleep balance
-                      </div>
-                      <div className="rounded-2xl bg-white/18 px-3 py-2 text-sm">
-                        Weight trend
-                      </div>
+                      {aboutPrinciples.map((principle) => (
+                        <div
+                          key={principle}
+                          className="rounded-2xl bg-white/18 px-3 py-2 text-sm"
+                        >
+                          {principle}
+                        </div>
+                      ))}
                     </div>
+                    <Link
+                      href="/about"
+                      className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-white underline underline-offset-4"
+                    >
+                      Read the full story
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
                   </div>
                 </div>
               </div>
