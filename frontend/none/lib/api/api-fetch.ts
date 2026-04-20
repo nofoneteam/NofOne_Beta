@@ -62,7 +62,7 @@ async function parseResponse<T>(
           message: response.statusText || "Request failed",
         };
 
-    throw new ApiRequestError(error.message, response.status);
+    throw new ApiRequestError(error.message || "Request failed", response.status);
   }
 
   if (!payload || !("success" in payload) || !payload.success) {

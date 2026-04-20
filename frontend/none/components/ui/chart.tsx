@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
+import type { TooltipProps } from "recharts";
 
 import { cn } from "@/lib/utils";
 
@@ -65,7 +66,11 @@ function ChartTooltipContent({
   active,
   payload,
   label,
-}: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; dataKey: string | number; color?: string }>;
+  label?: string | number;
+}) {
   const { config } = useChart();
 
   if (!active || !payload?.length) {
