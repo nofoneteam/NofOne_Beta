@@ -2416,7 +2416,7 @@ function QuickInputCard({
   return (
     <div className="animate-fade-up animation-delay-4">
       <form
-        className="overflow-hidden rounded-[18px] bg-[#f3f1eb] shadow-[0_8px_18px_rgba(0,0,0,0.03)]"
+        className="relative overflow-visible rounded-[18px] bg-[#f3f1eb] shadow-[0_8px_18px_rgba(0,0,0,0.03)]"
         onSubmit={onSubmit}
       >
         {/* Image preview strip */}
