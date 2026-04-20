@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
-import { AUTH_TOKEN_STORAGE_KEY, authApi, userApi } from "@/lib/api";
+import { authApi, userApi } from "@/lib/api";
+import { getStoredAccessToken } from "@/lib/auth/session";
 import { isProfileComplete } from "@/lib/profile";
 import type { UpsertHealthProfilePayload } from "@/types/api";
 import type { HealthProfileWithUser } from "@/types/domain";
@@ -45,14 +46,6 @@ const dietOptions = [
   { label: "Low-FODMAP", value: "Low-FODMAP" },
   { label: "Gluten-Free", value: "Gluten-Free" },
 ] as const;
-
-function getStoredAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-}
 
 function calculateBmi(weight: number, height: number) {
   const heightInMeters = height / 100;

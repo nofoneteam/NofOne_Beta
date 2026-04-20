@@ -171,6 +171,35 @@ export interface ChatConfig {
   updatedAt: string;
 }
 
+export interface AdminChartPoint {
+  label: string;
+  value: number;
+}
+
+export interface AdminOverview {
+  totals: {
+    signups: number;
+    referrals: number;
+    admins: number;
+  };
+  charts: {
+    daily: {
+      signups: AdminChartPoint[];
+      referrals: AdminChartPoint[];
+    };
+    weekly: {
+      signups: AdminChartPoint[];
+      referrals: AdminChartPoint[];
+    };
+    monthly: {
+      signups: AdminChartPoint[];
+      referrals: AdminChartPoint[];
+    };
+  };
+  latestSignups: User[];
+  latestReferrals: User[];
+}
+
 export interface OtpCode {
   id: string;
   channel: "email" | "phone";

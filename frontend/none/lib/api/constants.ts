@@ -37,6 +37,9 @@ export const API_ROUTES = {
   },
   admin: {
     bootstrap: `${API_PREFIX}/admin/bootstrap`,
+    overview: `${API_PREFIX}/admin/overview`,
+    admins: `${API_PREFIX}/admin/admins`,
+    searchUsers: `${API_PREFIX}/admin/users/search`,
     updateUserRole: `${API_PREFIX}/admin/users`,
     chatConfig: `${API_PREFIX}/admin/chat-config`,
   },

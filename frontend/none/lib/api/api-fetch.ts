@@ -1,5 +1,19 @@
 import { env } from "@/lib/config/env";
+import { API_ROUTES } from "@/lib/api/constants";
+import { logoutFrontend, persistAccessToken } from "@/lib/auth/session";
 import type { ApiErrorResponse, ApiFetchOptions, ApiSuccessResponse } from "@/types/api";
+
+class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
+let refreshSessionPromise: Promise<string | null> | null = null;
 
 function buildUrl(
   path: string,
@@ -48,7 +62,7 @@ async function parseResponse<T>(
           message: response.statusText || "Request failed",
         };
 
-    throw new Error(error.message);
+    throw new ApiRequestError(error.message, response.status);
   }
 
   if (!payload || !("success" in payload) || !payload.success) {
@@ -58,9 +72,9 @@ async function parseResponse<T>(
   return payload;
 }
 
-export async function apiFetch<T>(
+async function executeRequest<T>(
   path: string,
-  options: ApiFetchOptions = {},
+  options: ApiFetchOptions,
 ): Promise<ApiSuccessResponse<T>> {
   const { body, token, cookie, query, headers, ...init } = options;
   const requestHeaders = new Headers(headers);
@@ -91,4 +105,72 @@ export async function apiFetch<T>(
   });
 
   return parseResponse<T>(response);
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = (async () => {
+      try {
+        const response = await executeRequest<{ accessToken: string }>(
+          API_ROUTES.auth.refresh,
+          {
+            method: "POST",
+            body: {},
+          },
+        );
+
+        const nextAccessToken = response.data.accessToken;
+
+        if (!nextAccessToken) {
+          logoutFrontend();
+          return null;
+        }
+
+        persistAccessToken(nextAccessToken);
+        return nextAccessToken;
+      } catch {
+        logoutFrontend();
+        return null;
+      } finally {
+        refreshSessionPromise = null;
+      }
+    })();
+  }
+
+  return refreshSessionPromise;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  options: ApiFetchOptions = {},
+): Promise<ApiSuccessResponse<T>> {
+  try {
+    return await executeRequest<T>(path, options);
+  } catch (error) {
+    const canRefresh =
+      error instanceof ApiRequestError &&
+      error.status === 401 &&
+      Boolean(options.token) &&
+      path !== API_ROUTES.auth.refresh &&
+      path !== API_ROUTES.auth.logout;
+
+    if (!canRefresh) {
+      throw error;
+    }
+
+    const nextAccessToken = await refreshAccessToken();
+
+    if (!nextAccessToken) {
+      throw new ApiRequestError("Session expired. Please sign in again.", 401);
+    }
+
+    return executeRequest<T>(path, {
+      ...options,
+      token: nextAccessToken,
+    });
+  }
 }

@@ -1,4 +1,5 @@
 import type {
+  AdminOverview,
   AuthSession,
   ChatConfig,
   ChatPreferences,
@@ -174,6 +175,10 @@ export interface UpdateUserRolePayload {
   role: UserRole;
 }
 
+export interface SearchAdminUsersQuery {
+  email: string;
+}
+
 export interface UpsertChatConfigPayload {
   systemPrompt?: string;
   imageSystemPrompt?: string;
@@ -207,5 +212,8 @@ export type GetChatHistoryResponse = ApiSuccessResponse<{ messages: ChatMessage[
 export type CreateChatMessageResponse = ApiSuccessResponse<ChatTurnResponse>;
 export type BootstrapAdminResponse = ApiSuccessResponse<User>;
 export type UpdateUserRoleResponse = ApiSuccessResponse<User>;
+export type GetAdminOverviewResponse = ApiSuccessResponse<AdminOverview>;
+export type SearchAdminUsersResponse = ApiSuccessResponse<{ users: User[] }>;
+export type ListAdminsResponse = ApiSuccessResponse<{ admins: User[] }>;
 export type GetChatConfigResponse = ApiSuccessResponse<ChatConfig>;
 export type UpsertChatConfigResponse = ApiSuccessResponse<ChatConfig>;

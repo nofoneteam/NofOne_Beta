@@ -1,4 +1,4 @@
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
 
 const bootstrapAdminRules = [
   body("bootstrapSecret")
@@ -12,6 +12,15 @@ const updateUserRoleRules = [
   body("role")
     .isIn(["user", "admin"])
     .withMessage("role must be either user or admin"),
+];
+
+const searchUsersRules = [
+  query("email")
+    .trim()
+    .notEmpty()
+    .withMessage("email is required")
+    .isLength({ min: 2, max: 120 })
+    .withMessage("email must be between 2 and 120 characters"),
 ];
 
 const chatConfigRules = [
@@ -37,5 +46,6 @@ const chatConfigRules = [
 module.exports = {
   bootstrapAdminRules,
   updateUserRoleRules,
+  searchUsersRules,
   chatConfigRules,
 };

@@ -4,6 +4,10 @@ import type {
   BootstrapAdminPayload,
   BootstrapAdminResponse,
   GetChatConfigResponse,
+  GetAdminOverviewResponse,
+  ListAdminsResponse,
+  SearchAdminUsersQuery,
+  SearchAdminUsersResponse,
   UpdateUserRolePayload,
   UpdateUserRoleResponse,
   UpsertChatConfigPayload,
@@ -15,6 +19,28 @@ export const adminApi = {
     return apiFetch<BootstrapAdminResponse["data"]>(API_ROUTES.admin.bootstrap, {
       method: "POST",
       body: payload,
+      token,
+    });
+  },
+
+  getOverview(token?: string | null) {
+    return apiFetch<GetAdminOverviewResponse["data"]>(API_ROUTES.admin.overview, {
+      method: "GET",
+      token,
+    });
+  },
+
+  searchUsers(query: SearchAdminUsersQuery, token?: string | null) {
+    return apiFetch<SearchAdminUsersResponse["data"]>(API_ROUTES.admin.searchUsers, {
+      method: "GET",
+      token,
+      query,
+    });
+  },
+
+  listAdmins(token?: string | null) {
+    return apiFetch<ListAdminsResponse["data"]>(API_ROUTES.admin.admins, {
+      method: "GET",
       token,
     });
   },
@@ -50,4 +76,3 @@ export const adminApi = {
     });
   },
 };
-

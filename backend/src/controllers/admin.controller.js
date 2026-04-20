@@ -1,6 +1,13 @@
 const asyncHandler = require("../utils/asyncHandler");
-const { bootstrapAdmin, setUserRole } = require("../services/auth.service");
-const { getChatConfig, upsertChatConfig } = require("../services/admin.service");
+const { bootstrapAdmin } = require("../services/auth.service");
+const {
+  getAdminOverview,
+  searchUsersByEmail,
+  listAdmins,
+  updateUserRole,
+  getChatConfig,
+  upsertChatConfig,
+} = require("../services/admin.service");
 
 const bootstrapAdminController = asyncHandler(async (request, response) => {
   const user = await bootstrapAdmin(request.user.userId, request.body.bootstrapSecret);
@@ -13,12 +20,43 @@ const bootstrapAdminController = asyncHandler(async (request, response) => {
 });
 
 const updateUserRoleController = asyncHandler(async (request, response) => {
-  const user = await setUserRole(request.params.userId, request.body.role);
+  const user = await updateUserRole({
+    actor: request.user,
+    userId: request.params.userId,
+    role: request.body.role,
+  });
 
   response.status(200).json({
     success: true,
     message: "User role updated successfully",
     data: user,
+  });
+});
+
+const getAdminOverviewController = asyncHandler(async (request, response) => {
+  const overview = await getAdminOverview();
+
+  response.status(200).json({
+    success: true,
+    data: overview,
+  });
+});
+
+const searchUsersController = asyncHandler(async (request, response) => {
+  const users = await searchUsersByEmail(request.query.email);
+
+  response.status(200).json({
+    success: true,
+    data: { users },
+  });
+});
+
+const listAdminsController = asyncHandler(async (request, response) => {
+  const admins = await listAdmins();
+
+  response.status(200).json({
+    success: true,
+    data: { admins },
   });
 });
 
@@ -44,6 +82,9 @@ const upsertChatConfigController = asyncHandler(async (request, response) => {
 module.exports = {
   bootstrapAdminController,
   updateUserRoleController,
+  getAdminOverviewController,
+  searchUsersController,
+  listAdminsController,
   getChatConfigController,
   upsertChatConfigController,
 };

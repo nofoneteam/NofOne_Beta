@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authApi, AUTH_TOKEN_STORAGE_KEY, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
+import { authApi, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
+import { getStoredAccessToken, persistAccessToken } from "@/lib/auth/session";
 import {
   createPhoneRecaptchaVerifier,
   createGoogleProvider,
@@ -106,7 +107,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
       return;
     }
 
-    const savedToken = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    const savedToken = getStoredAccessToken();
 
     if (savedToken) {
       router.replace("/home");
@@ -146,14 +147,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
       }
     };
   }, []);
-
-  function persistSession(accessToken: string) {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, accessToken);
-  }
 
   function clearStoredReferralCode() {
     if (typeof window === "undefined") {
@@ -239,7 +232,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
           ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
         });
 
-        persistSession(response.data.accessToken);
+        persistAccessToken(response.data.accessToken);
         if (mode === "signup") {
           clearStoredReferralCode();
         }
@@ -260,7 +253,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
           ? await authApi.verifySignupOtp(payload)
           : await authApi.verifyLoginOtp(payload);
 
-      persistSession(response.data.accessToken);
+      persistAccessToken(response.data.accessToken);
       if (mode === "signup") {
         clearStoredReferralCode();
       }
@@ -294,7 +287,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
       });
 
-      persistSession(response.data.accessToken);
+      persistAccessToken(response.data.accessToken);
       if (mode === "signup") {
         clearStoredReferralCode();
       }

@@ -7,6 +7,7 @@ const validate = require("../middlewares/validate.middleware");
 const {
   bootstrapAdminRules,
   updateUserRoleRules,
+  searchUsersRules,
   chatConfigRules,
 } = require("../validations/admin.validation");
 
@@ -26,6 +27,26 @@ router.patch(
   updateUserRoleRules,
   validate,
   adminController.updateUserRoleController
+);
+router.get(
+  "/overview",
+  authenticate,
+  requireRole("admin"),
+  adminController.getAdminOverviewController
+);
+router.get(
+  "/users/search",
+  authenticate,
+  requireRole("admin"),
+  searchUsersRules,
+  validate,
+  adminController.searchUsersController
+);
+router.get(
+  "/admins",
+  authenticate,
+  requireRole("admin"),
+  adminController.listAdminsController
 );
 router.get(
   "/chat-config",

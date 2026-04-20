@@ -14,7 +14,13 @@ module.exports = asyncHandler(async (request, response, next) => {
   if (!token) {
     throw new ApiError(401, "Access token is required");
   }
-  const decodedToken = jwt.verify(token, env.jwtSecret);
+  let decodedToken;
+
+  try {
+    decodedToken = jwt.verify(token, env.jwtSecret);
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired access token");
+  }
 
   if (decodedToken.tokenType && decodedToken.tokenType !== "access") {
     throw new ApiError(401, "Invalid access token");

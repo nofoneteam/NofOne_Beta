@@ -35,7 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/components/ui/toast";
-import { AUTH_TOKEN_STORAGE_KEY, authApi, chatApi, logsApi, userApi } from "@/lib/api";
+import { authApi, chatApi, logsApi, userApi } from "@/lib/api";
+import { getStoredAccessToken, logoutFrontend } from "@/lib/auth/session";
 import { applyDailyGoalOverrides, readDailyGoalOverrides } from "@/lib/daily-goal-overrides";
 import { getHomeSectionFromPath, HOME_SECTION_ROUTES, type HomeSectionKey } from "@/lib/home-routes";
 import { isProfileComplete } from "@/lib/profile";
@@ -85,14 +86,6 @@ const rotatingChatPrompts = [
   "Log a meal, workout, or hydration update.",
   "What did you eat for breakfast or lunch?",
 ] as const;
-
-function getStoredAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-}
 
 function getIsoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -522,8 +515,7 @@ export function DashboardShell() {
         message.toLowerCase().includes("access token") ||
         message.toLowerCase().includes("unauthorized")
       ) {
-        window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-        router.replace("/");
+        logoutFrontend();
         return;
       }
 
@@ -686,10 +678,8 @@ export function DashboardShell() {
     }
 
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      logoutFrontend({ redirectTo: "/" });
     }
-
-    router.push("/");
   }
 
   async function handleWaterUpdate(delta: number) {
@@ -1318,13 +1308,14 @@ export function DashboardShell() {
                 type="button"
               />
               <aside className="absolute left-0 top-0 z-[60] flex h-full w-70 animate-slide-in flex-col overflow-hidden border-r border-[#ecece7] bg-[#fdfdfa] lg:hidden">
-                <SidebarPanel
-                  activeSection={activeSection}
-                  onClose={() => setSidebarOpen(false)}
-                  onLogout={handleLogout}
-                  onSelect={handleSidebarSelect}
-                  user={user}
-                />
+            <SidebarPanel
+              activeSection={activeSection}
+              onAdminToggle={() => router.push("/home/admin")}
+              onClose={() => setSidebarOpen(false)}
+              onLogout={handleLogout}
+              onSelect={handleSidebarSelect}
+              user={user}
+            />
               </aside>
             </>
           ) : null}
@@ -1332,6 +1323,7 @@ export function DashboardShell() {
           <aside className="hidden h-full w-70 shrink-0 overflow-hidden border-r border-[#ecece7] bg-[#fdfdfa] lg:flex lg:flex-col">
             <SidebarPanel
               activeSection={activeSection}
+              onAdminToggle={() => router.push("/home/admin")}
               onClose={() => undefined}
               onLogout={handleLogout}
               onSelect={handleSidebarSelect}
@@ -1708,12 +1700,14 @@ export function DashboardShell() {
 
 function SidebarPanel({
   activeSection,
+  onAdminToggle,
   onClose,
   onLogout,
   onSelect,
   user,
 }: {
   activeSection: HomeSectionKey;
+  onAdminToggle: () => void;
   onClose: () => void;
   onLogout: () => void;
   onSelect: (id: HomeSectionKey) => void;
@@ -1768,6 +1762,27 @@ function SidebarPanel({
 
       <div className="border-t border-[#ecece7] px-4 py-4">
         <div className="space-y-1">
+          {user?.role === "admin" ? (
+            <button
+              className="flex w-full items-center justify-between rounded-[14px] border border-[#e5e7e1] bg-white px-4 py-3 text-left transition-colors hover:bg-[#f7f7f3]"
+              onClick={() => {
+                onAdminToggle();
+                onClose();
+              }}
+              type="button"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-green-800">
+                  <Shield className="h-4.25 w-4.25" />
+                </span>
+                <div>
+                  <p className="text-[15px] text-[#111111]">Admin mode</p>
+                  <p className="text-[12px] text-[#8a9198]">Switch to admin</p>
+                </div>
+              </div>
+              <ModeSidebarSwitch checked={false} />
+            </button>
+          ) : null}
           {secondarySidebarItems.map((item) => (
             <button
               key={item.key}
@@ -1788,6 +1803,24 @@ function SidebarPanel({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ModeSidebarSwitch({ checked }: { checked: boolean }) {
+  return (
+    <div
+      className={cn(
+        "relative flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300",
+        checked ? "bg-green-800" : "bg-[#dcefdc]",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute h-5 w-5 rounded-full bg-white transition-transform duration-300",
+          checked ? "translate-x-6" : "translate-x-1",
+        )}
+      />
     </div>
   );
 }
@@ -2248,10 +2281,13 @@ function QuickInputCard({
   promptFading: boolean;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const imagePickerMenuRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -2260,13 +2296,41 @@ function QuickInputCard({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isImagePickerOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!imagePickerMenuRef.current?.contains(event.target as Node)) {
+        setIsImagePickerOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [isImagePickerOpen]);
+
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file) {
       onImageSelect(file);
     }
+    setIsImagePickerOpen(false);
     // Reset so the same file can be re-selected
     event.target.value = "";
+  }
+
+  function openGalleryPicker() {
+    setIsImagePickerOpen(false);
+    galleryInputRef.current?.click();
+  }
+
+  function openCameraPicker() {
+    setIsImagePickerOpen(false);
+    cameraInputRef.current?.click();
   }
 
   function handleMicToggle() {
@@ -2416,17 +2480,45 @@ function QuickInputCard({
           >
             <Mic className={cn("h-4.5 w-4.5", isListening && "animate-pulse")} />
           </button>
-          <button
-            aria-label="Attach image"
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70 flex-shrink-0",
-              chatImagePreview ? "text-green-800" : "text-[#7d8791]",
-            )}
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-          >
-            <CameraIcon />
-          </button>
+          <div className="relative flex-shrink-0" ref={imagePickerMenuRef}>
+            <button
+              aria-expanded={isImagePickerOpen}
+              aria-haspopup="menu"
+              aria-label="Attach image"
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/70",
+                chatImagePreview || isImagePickerOpen ? "text-green-800" : "text-[#7d8791]",
+              )}
+              onClick={() => setIsImagePickerOpen((current) => !current)}
+              type="button"
+            >
+              <CameraIcon />
+            </button>
+
+            {isImagePickerOpen ? (
+              <div
+                className="absolute right-0 bottom-11 z-20 w-48 overflow-hidden rounded-2xl border border-[#e5e1d8] bg-white p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.10)]"
+                role="menu"
+              >
+                <button
+                  className="flex w-full items-center rounded-[14px] px-3 py-2.5 text-left text-[13px] font-medium text-[#111111] transition-colors hover:bg-[#f5f2ea]"
+                  onClick={openGalleryPicker}
+                  role="menuitem"
+                  type="button"
+                >
+                  Choose from gallery
+                </button>
+                <button
+                  className="flex w-full items-center rounded-[14px] px-3 py-2.5 text-left text-[13px] font-medium text-[#111111] transition-colors hover:bg-[#f5f2ea]"
+                  onClick={openCameraPicker}
+                  role="menuitem"
+                  type="button"
+                >
+                  Open camera
+                </button>
+              </div>
+            ) : null}
+          </div>
           <button
             className="flex h-8 w-8 items-center justify-center rounded-full text-[#111111] transition-colors hover:bg-white/70 disabled:opacity-40 flex-shrink-0 ml-auto"
             disabled={chatting || (!chatInput.trim() && !chatImagePreview)}
@@ -2439,8 +2531,16 @@ function QuickInputCard({
 
       {/* Hidden file input */}
       <input
-        ref={fileInputRef}
+        ref={galleryInputRef}
         accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+        type="file"
+      />
+      <input
+        ref={cameraInputRef}
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handleFileChange}
         type="file"

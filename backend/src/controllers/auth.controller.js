@@ -123,10 +123,19 @@ const logoutController = asyncHandler(async (request, response) => {
   const refreshToken = getRefreshTokenFromRequest(request);
 
   if (!refreshToken) {
-    throw new ApiError(400, "Refresh token is required in either cookies or request body");
+    clearAuthCookies(response);
+    response.status(200).json({
+      success: true,
+      message: "Session logged out successfully",
+    });
+    return;
   }
 
-  await revokeRefreshSession(refreshToken);
+  try {
+    await revokeRefreshSession(refreshToken);
+  } catch {
+    // Logout should still succeed locally even if the refresh token already expired or was revoked.
+  }
   clearAuthCookies(response);
 
   response.status(200).json({

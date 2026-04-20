@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { reminderApi, Reminder, AUTH_TOKEN_STORAGE_KEY } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { reminderApi, Reminder } from "@/lib/api";
+import { getStoredAccessToken } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { ArrowLeft, CheckCircle2, CircleDashed } from "lucide-react";
-
-function getStoredAccessToken() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-}
 
 export function ReminderSection({ onBack }: { onBack: () => void }) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -20,11 +16,7 @@ export function ReminderSection({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadReminders();
-  }, []);
-
-  async function loadReminders() {
+  const loadReminders = useCallback(async () => {
     const token = getStoredAccessToken();
     if (!token) return;
 
@@ -38,7 +30,11 @@ export function ReminderSection({ onBack }: { onBack: () => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    void loadReminders();
+  }, [loadReminders]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -66,10 +62,10 @@ export function ReminderSection({ onBack }: { onBack: () => void }) {
       setMessage("");
       setReminderTime("");
       await loadReminders();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Failed to set reminder",
-        description: err.message,
+        description: err instanceof Error ? err.message : "Something went wrong.",
         variant: "error",
       });
     } finally {
