@@ -33,6 +33,14 @@ export const chatApi = {
     });
   },
 
+  updateMessage(messageId: string, payload: ChatMessagePayload, token?: string | null) {
+    return apiFetch<CreateChatMessageResponse["data"]>(`${API_ROUTES.chat.base}/${messageId}`, {
+      method: "PUT",
+      body: payload,
+      token,
+    });
+  },
+
   uploadImage(payload: ChatImagePayload, token?: string | null) {
     return apiFetch<CreateChatMessageResponse["data"]>(API_ROUTES.chat.base, {
       method: "POST",

@@ -19,4 +19,13 @@ router.post(
   chatController.createChatMessage
 );
 
+router.put(
+  "/:messageId",
+  authenticate,
+  handleChatUpload,
+  chatMessageRules,
+  validate,
+  chatController.updateChatMessage
+);
+
 module.exports = router;

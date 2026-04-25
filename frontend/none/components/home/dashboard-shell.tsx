@@ -22,6 +22,8 @@ import {
   GlassWaterIcon,
   DropletIcon,
   Flame,
+  Loader2,
+  Download,
 } from "lucide-react";
 
 import { DailyGoalsSection } from "@/components/home/daily-goals-section";
@@ -55,6 +57,17 @@ import type {
 } from "@/types/domain";
 import type { ShareReportPayload, UpsertHealthProfilePayload } from "@/types/api";
 import { parseNutritionFromText, type ParsedNutritionData } from "@/lib/api/nutrition-parser";
+
+export interface LoggedNutritionItem {
+  messageId: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  exerciseMinutes: number;
+  exerciseCalories: number;
+}
 
 type SidebarItem = {
   key: string;
@@ -407,7 +420,8 @@ export function DashboardShell() {
   const [chatImagePreview, setChatImagePreview] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
-  const [loggedNutritionMessageIds, setLoggedNutritionMessageIds] = useState<string[]>([]);
+  const [selectedMessageContext, setSelectedMessageContext] = useState<string | undefined>(undefined);
+  const [loggedNutritionItems, setLoggedNutritionItems] = useState<Record<string, LoggedNutritionItem>>({});
   const [historyLoading, setHistoryLoading] = useState(false);
   const { toast } = useToast();
   const activeSection = useMemo(() => getHomeSectionFromPath(pathname), [pathname]);
@@ -622,15 +636,35 @@ export function DashboardShell() {
     );
 
     if (!stored) {
-      setLoggedNutritionMessageIds([]);
+      setLoggedNutritionItems({});
       return;
     }
 
     try {
       const parsed = JSON.parse(stored);
-      setLoggedNutritionMessageIds(Array.isArray(parsed) ? parsed : []);
+      if (Array.isArray(parsed)) {
+        // Migration from old string[] array format
+        const migrated: Record<string, LoggedNutritionItem> = {};
+        for (const id of parsed) {
+          if (typeof id === "string") {
+            migrated[id] = {
+              messageId: id,
+              name: "Logged Item",
+              calories: 0,
+              protein: 0,
+              carbs: 0,
+              fat: 0,
+              exerciseMinutes: 0,
+              exerciseCalories: 0,
+            };
+          }
+        }
+        setLoggedNutritionItems(migrated);
+      } else {
+        setLoggedNutritionItems(parsed || {});
+      }
     } catch {
-      setLoggedNutritionMessageIds([]);
+      setLoggedNutritionItems({});
     }
   }, [selectedIsoDate]);
 
@@ -663,10 +697,7 @@ export function DashboardShell() {
   const targetWater = Math.max(1, Math.round(waterMetric?.target ?? 8));
   const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
-  const remainingCalories = Math.max(
-    Math.round((caloriesMetric?.target ?? 0) - (caloriesMetric?.current ?? 0)),
-    0,
-  );
+  const remainingCalories = Math.round((caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories);
 
   async function handleLogout() {
     const token = getStoredAccessToken();
@@ -908,6 +939,7 @@ export function DashboardShell() {
         response.data.userMessage,
         response.data.assistantMessage,
       ]);
+      setSelectedMessageContext(chatInput);
       setSelectedMessage(response.data.assistantMessage);
       setChatInput("");
     } catch (error) {
@@ -942,19 +974,22 @@ export function DashboardShell() {
   }
 
   const handleCaloriesMacrosUpdate = async(messageId: string,
-    totals: { calories: number; carbs: number; protein: number; fat: number; exerciseMinutes: number; exerciseCalories: number },
+    totals: { name: string; calories: number; carbs: number; protein: number; fat: number; exerciseMinutes: number; exerciseCalories: number },
     dateIso: string,) => {
     const token = getStoredAccessToken();
     if (!token) return;
 
-    if (loggedNutritionMessageIds.includes(messageId)) {
-      toast({
-        title: "Already logged",
-        description: "This nutrition item has already been added for the selected day.",
-        variant: "error",
-      });
-      return;
-    }
+    const existingLog = loggedNutritionItems[messageId];
+    const isUpdate = !!existingLog;
+    
+    const diff = {
+      calories: totals.calories - (existingLog?.calories ?? 0),
+      carbs: totals.carbs - (existingLog?.carbs ?? 0),
+      protein: totals.protein - (existingLog?.protein ?? 0),
+      fat: totals.fat - (existingLog?.fat ?? 0),
+      exerciseMinutes: totals.exerciseMinutes - (existingLog?.exerciseMinutes ?? 0),
+      exerciseCalories: totals.exerciseCalories - (existingLog?.exerciseCalories ?? 0),
+    };
 
     const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
     const prevCal = Math.round(
@@ -969,31 +1004,44 @@ export function DashboardShell() {
     try {
       await logsApi.saveDailyLog({
         date: dateIso,
-        calories: prevCal + totals.calories,
-        carbs: prevCrb + totals.carbs,
-        protein: prevPro + totals.protein,
-        fat: prevFat + totals.fat,
-        exerciseMinutes: prevExeMin + totals.exerciseMinutes,
-        exerciseCalories: prevExeCal + totals.exerciseCalories,
+        calories: prevCal + diff.calories,
+        carbs: prevCrb + diff.carbs,
+        protein: prevPro + diff.protein,
+        fat: prevFat + diff.fat,
+        exerciseMinutes: prevExeMin + diff.exerciseMinutes,
+        exerciseCalories: prevExeCal + diff.exerciseCalories,
       }, token);
       
       toast({
-        title: "Logged successfully",
-        description: "Nutrition data added to today's log.",
+        title: isUpdate ? "Log updated successfully" : "Logged successfully",
+        description: isUpdate ? "Nutrition data has been updated." : "Nutrition data added to today's log.",
         variant: "success",
       });
 
-      const nextLoggedIds = [...loggedNutritionMessageIds, messageId];
-      setLoggedNutritionMessageIds(nextLoggedIds);
+      const nextItem: LoggedNutritionItem = {
+        messageId,
+        name: totals.name,
+        calories: totals.calories,
+        carbs: totals.carbs,
+        protein: totals.protein,
+        fat: totals.fat,
+        exerciseMinutes: totals.exerciseMinutes,
+        exerciseCalories: totals.exerciseCalories,
+      };
+
+      const nextLoggedItems = { ...loggedNutritionItems, [messageId]: nextItem };
+      setLoggedNutritionItems(nextLoggedItems);
       if (typeof window !== "undefined") {
         window.localStorage.setItem(
           getNutritionLogStorageKey(dateIso),
-          JSON.stringify(nextLoggedIds),
+          JSON.stringify(nextLoggedItems),
         );
       }
 
       void loadDashboard(dateIso);
-      setSelectedMessage(null);
+      if (!isUpdate) {
+        setSelectedMessage(null);
+      }
     } catch {
       toast({
         title: "Error",
@@ -1315,6 +1363,7 @@ export function DashboardShell() {
               onLogout={handleLogout}
               onSelect={handleSidebarSelect}
               user={user}
+              onDownloadReport={() => handleOpenReportModal("view")}
             />
               </aside>
             </>
@@ -1328,6 +1377,7 @@ export function DashboardShell() {
               onLogout={handleLogout}
               onSelect={handleSidebarSelect}
               user={user}
+              onDownloadReport={() => handleOpenReportModal("view")}
             />
           </aside>
 
@@ -1569,12 +1619,20 @@ export function DashboardShell() {
                       target={Math.round(caloriesMetric?.target ?? 0)}
                     />
 
+                    <MacrosCard
+                      carbs={carbsMetric}
+                      fat={fatMetric}
+                      loading={loading}
+                      protein={proteinMetric}
+                    />
+
                     <div className="grid min-w-0 gap-2 grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:gap-3">
-                      <MacrosCard
-                        carbs={carbsMetric}
-                        fat={fatMetric}
+                      <DesktopSummaryCard
+                        calories={Math.round(caloriesMetric?.current ?? 0)}
+                        completion={effectiveDashboard?.dailyGoals.completionPercent ?? 0}
                         loading={loading}
-                        protein={proteinMetric}
+                        target={Math.round(caloriesMetric?.target ?? 0)}
+                        water={currentWater}
                       />
                       <WaterCard
                         current={currentWater}
@@ -1585,15 +1643,6 @@ export function DashboardShell() {
                         onIncrement={() => void handleWaterUpdate(1)}
                       />
                     </div>
-
-                    <ReportCard
-                      loading={loading}
-                      report={weeklyReport}
-                      shareMessage={shareMessage}
-                      sharing={sharing}
-                      onShare={() => handleOpenReportModal("share")}
-                      onView={() => handleOpenReportModal("view")}
-                    />
                   </div>
 
                   <div className="min-w-0 space-y-4">
@@ -1605,14 +1654,6 @@ export function DashboardShell() {
                       <MessageSquareText className="h-5 w-5 text-green-600" />
                       See previous messages
                     </button>
-
-                    <DesktopSummaryCard
-                      calories={Math.round(caloriesMetric?.current ?? 0)}
-                      completion={effectiveDashboard?.dailyGoals.completionPercent ?? 0}
-                      loading={loading}
-                      target={Math.round(caloriesMetric?.target ?? 0)}
-                      water={currentWater}
-                    />
                   </div>
                 </div>
               ) : null}
@@ -1673,8 +1714,11 @@ export function DashboardShell() {
                   <ChatHistoryPanel
                     history={chatHistory}
                     loading={historyLoading}
-                    loggedMessageIds={loggedNutritionMessageIds}
-                    onSelectMessage={setSelectedMessage}
+                    loggedItems={loggedNutritionItems}
+                    onSelectMessage={(msg, contextName) => {
+                      setSelectedMessageContext(contextName);
+                      setSelectedMessage(msg);
+                    }}
                   />
                 </div>
               </div>
@@ -1683,12 +1727,32 @@ export function DashboardShell() {
 
           {selectedMessage ? (
             <MessageModalRouter
-              isLogged={loggedNutritionMessageIds.includes(selectedMessage.id)}
+              loggedItem={loggedNutritionItems[selectedMessage.id]}
+              contextName={selectedMessageContext}
               message={selectedMessage}
+              selectedIsoDate={selectedIsoDate}
               onClose={() => setSelectedMessage(null)}
               onLogSave={(totals) => {
                 const dateIso = selectedIsoDate;
                 handleCaloriesMacrosUpdate(selectedMessage.id, totals, dateIso);
+              }}
+              onRefetchUpdate={(newAssistantMsg, newUserQueryText) => {
+                const replacedMsg = { ...newAssistantMsg, id: selectedMessage.id };
+                
+                setChatHistory((prev) => {
+                  const newHistory = [...prev];
+                  const astIdx = newHistory.findIndex((m) => m.id === selectedMessage.id);
+                  if (astIdx !== -1) {
+                    newHistory[astIdx] = replacedMsg;
+                    if (astIdx > 0 && newHistory[astIdx - 1].role === "user") {
+                      newHistory[astIdx - 1] = { ...newHistory[astIdx - 1], message: newUserQueryText };
+                    }
+                  }
+                  return newHistory;
+                });
+                
+                setSelectedMessage(replacedMsg);
+                setSelectedMessageContext(newUserQueryText);
               }}
             />
           ) : null}
@@ -1705,6 +1769,7 @@ function SidebarPanel({
   onLogout,
   onSelect,
   user,
+  onDownloadReport,
 }: {
   activeSection: HomeSectionKey;
   onAdminToggle: () => void;
@@ -1712,6 +1777,7 @@ function SidebarPanel({
   onLogout: () => void;
   onSelect: (id: HomeSectionKey) => void;
   user: User | null;
+  onDownloadReport?: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1801,6 +1867,18 @@ function SidebarPanel({
               <span>{item.label}</span>
             </button>
           ))}
+          {onDownloadReport && (
+            <button
+              className="flex w-full items-center gap-3 rounded-[14px] px-4 py-3 text-left text-[15px] text-[#111111] transition-colors hover:bg-[#f4f4ef]"
+              onClick={onDownloadReport}
+              type="button"
+            >
+              <span className="text-[#8a9198]">
+                <Download className="h-[20px] w-[20px]" />
+              </span>
+              <span>Download Report</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1966,36 +2044,23 @@ function DesktopSummaryCard({
         <ShimmerLine className="h-4 w-28" />
         <div className="mt-3 flex gap-3">
           <ShimmerBlock className="h-24 flex-1" />
-          <ShimmerBlock className="h-24 flex-1" />
         </div>
       </BaseCard>
     );
   }
 
   return (
-    <BaseCard className="p-4">
-      <p className="text-[13px] font-semibold text-[#111111]">Daily overview</p>
-      <div className="mt-3 flex flex-row gap-3">
-        <div className="flex-1 rounded-[16px] bg-[#f7f7f3] p-3 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5">
-            <Target className="h-4 w-4 text-green-600" />
-            <p className="text-[11px] uppercase tracking-[0.12em] text-[#9ea4ab]">Completion</p>
-          </div>
-          <div className="mt-2">
-            <p className="text-[24px] font-semibold leading-none text-[#111111]">{completion}%</p>
-            <p className="mt-1 text-[11px] text-[#8e949c]">Calories {calories}/{target}</p>
-          </div>
-        </div>
-        <div className="flex-1 rounded-[16px] bg-[#f7f7f3] p-3 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5">
-            <DropletIcon className="h-4 w-4 text-[#6bb0e7]" />
-            <p className="text-[11px] uppercase tracking-[0.12em] text-[#9ea4ab]">Hydration</p>
-          </div>
-          <div className="mt-2">
-            <p className="text-[24px] font-semibold leading-none text-[#111111]">{water}</p>
-            <p className="mt-1 text-[11px] text-[#8e949c]">cups logged today</p>
-          </div>
-        </div>
+    <BaseCard className="animate-fade-up p-3 sm:p-4 h-full relative min-h-[140px]">
+      <div className="flex items-center gap-2">
+        <TinyIconCircle bg="bg-[#e2f1e2]" text="text-[#166534]">
+          <Target/>
+        </TinyIconCircle>
+        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Completion</p>
+      </div>
+
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none pt-6 sm:pt-8">
+        <p className="text-[32px] sm:text-[42px] font-semibold leading-none text-[#111111]">{completion}%</p>
+        <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-[12px] text-[#9ea4ab]">Calories {calories} / {target}</p>
       </div>
     </BaseCard>
   );
@@ -3180,9 +3245,9 @@ function FlameIcon() {
   );
 }
 
-function TargetIcon() {
+function TargetIcon({ className }: { className?: string }) {
   return (
-    <svg className="h-2.75 w-2.75" fill="none" viewBox="0 0 24 24">
+    <svg className={cn("h-2.75 w-2.75", className)} fill="none" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
       <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.8" />
     </svg>
@@ -3236,13 +3301,13 @@ function CameraIcon() {
 function ChatHistoryPanel({
   history,
   loading,
-  loggedMessageIds,
+  loggedItems,
   onSelectMessage,
 }: {
   history: ChatMessage[];
   loading: boolean;
-  loggedMessageIds: string[];
-  onSelectMessage: (msg: ChatMessage) => void;
+  loggedItems: Record<string, LoggedNutritionItem>;
+  onSelectMessage: (msg: ChatMessage, contextName?: string) => void;
 }) {
   if (loading) {
     return (
@@ -3255,18 +3320,45 @@ function ChatHistoryPanel({
   }
 
   if (!history || history.length === 0) {
-    return null; // Do not show anything if no history yet
+    return null;
   }
 
-  const sortedHistory: ChatMessage[] = [];
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role !== "user" && i > 0 && history[i - 1].role === "user") {
-      sortedHistory.push(history[i - 1], history[i]);
-      i--;
+  type GroupedRecord = 
+    | { type: "user"; msg: ChatMessage }
+    | { type: "assistant"; msg: ChatMessage }
+    | { type: "nutrition_pair"; userMsg: ChatMessage | null; assistantMsg: ChatMessage; parsed: ParsedNutritionData };
+  
+  const grouped: GroupedRecord[] = [];
+  
+  for (let i = 0; i < history.length; i++) {
+    const msg = history[i];
+    if (msg.role === "user") {
+      const nextMsg = history[i + 1];
+      if (nextMsg && nextMsg.role !== "user") {
+        const parsed = parseNutritionFromText(nextMsg.message);
+        if (parsed) {
+          grouped.push({ type: "nutrition_pair", userMsg: msg, assistantMsg: nextMsg, parsed });
+          i++; // skip next since it's grouped
+        } else {
+          grouped.push({ type: "user", msg });
+        }
+      } else {
+        grouped.push({ type: "user", msg });
+      }
     } else {
-      sortedHistory.push(history[i]);
+      const parsed = parseNutritionFromText(msg.message);
+      if (parsed) {
+        grouped.push({ type: "nutrition_pair", userMsg: null, assistantMsg: msg, parsed });
+      } else {
+        grouped.push({ type: "assistant", msg });
+      }
     }
   }
+
+  // Reverse so newest is at top (or bottom depending on old logic)
+  // Old logic looped backwards, pushing onto an array, so newest user messages ended up at the end.
+  // Wait, if we push backwards `grouped.reverse()` makes newest at the top.
+  grouped.reverse();
 
   return (
     <div className="space-y-4 animate-fade-up animation-delay-5">
@@ -3274,63 +3366,74 @@ function ChatHistoryPanel({
         Today&apos;s History
       </p>
       <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {sortedHistory.map((msg) => {
-          const imageUrl = getChatImageUrl(msg);
-
-          if (msg.role === "user") {
+        {grouped.map((group, idx) => {
+          if (group.type === "user") {
+            const imageUrl = getChatImageUrl(group.msg);
             return (
-              <div key={msg.id} className="flex justify-end">
+              <div key={group.msg.id} className="flex justify-end">
                 <div className="max-w-[85%] rounded-[18px] rounded-br-[4px] bg-green-800 px-4 py-2.5 text-[14px] text-white shadow-sm">
                   {imageUrl ? (
                     <div className="space-y-2">
-                      <div className="overflow-hidden rounded-[12px] border border-white/15">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          alt={msg.message?.trim() ? msg.message : "Uploaded chat image"}
-                          className="max-h-56 w-full object-cover"
-                          src={imageUrl}
-                        />
-                      </div>
-                      {msg.message?.trim() ? <p>{msg.message}</p> : null}
+                       <div className="overflow-hidden rounded-[12px] border border-white/15">
+                         {/* eslint-disable-next-line @next/next/no-img-element */}
+                         <img
+                           alt={group.msg.message?.trim() ? group.msg.message : "Uploaded chat image"}
+                           className="max-h-56 w-full object-cover"
+                           src={imageUrl}
+                         />
+                       </div>
+                       {group.msg.message?.trim() ? <p>{group.msg.message}</p> : null}
                     </div>
                   ) : (
-                    msg.message
+                    group.msg.message
                   )}
                 </div>
               </div>
             );
-          } else {
-            // Assistant response
-            const parsed = parseNutritionFromText(msg.message);
-
+          }
+          
+          if (group.type === "assistant") {
             return (
-              <div key={msg.id} className="flex justify-start items-center">
-                <button
-                  type="button"
-                  onClick={() => onSelectMessage(msg)}
-                  className={cn(
-                    "rounded-[18px] rounded-bl-[4px] px-4 py-2.5 text-left text-[14px] shadow-sm max-w-[85%] transition-transform hover:scale-[1.01] active:scale-[0.98]",
-                    parsed
-                      ? "bg-[#edf5ee] text-[#2c3d30] border border-[#d3e5d6]"
-                      : "bg-[#f3f1eb] text-[#333538]"
-                  )}
-                >
-                  {parsed ? (
-                    <div className="flex items-center gap-2 font-medium">
-                      <TargetIcon />
-                      <span>Has Nutrition Data ({parsed.totals.calories} calories)</span>
-                      {loggedMessageIds.includes(msg.id) ? (
-                        <span className="rounded-full bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                          Logged
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <FormattedAssistantText className="line-clamp-3" text={msg.message} />
-                  )}
-                </button>
+              <div key={group.msg.id} className="flex justify-start items-center">
+                <div className="max-w-[85%] rounded-[18px] rounded-bl-[4px] bg-[#f3f1eb] text-[#333538] px-4 py-2.5 text-left text-[14px] shadow-sm">
+                  <FormattedAssistantText className="line-clamp-3" text={group.msg.message} />
+                </div>
               </div>
             );
+          }
+
+          if (group.type === "nutrition_pair") {
+             const isLogged = !!loggedItems[group.assistantMsg.id];
+             const contextName = group.userMsg?.message || "Logged Item";
+             
+             return (
+               <div key={`pair-${group.assistantMsg.id}`} className="flex justify-start w-full">
+                 <button 
+                   type="button" 
+                   onClick={() => onSelectMessage(group.assistantMsg, contextName)}
+                   className="w-full max-w-[90%] text-left bg-white border border-[#ecece7] rounded-[18px] shadow-sm overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.98]"
+                 >
+                    {group.userMsg && (
+                      <div className="bg-[#fcfcf9] px-4 py-3 border-b border-[#ecece7]">
+                         <p className="text-[14px] font-medium text-[#111111] line-clamp-2">
+                           "{group.userMsg.message}"
+                         </p>
+                      </div>
+                    )}
+                    <div className="px-4 py-3 flex items-center justify-between gap-3 bg-[#edf5ee]">
+                       <div className="flex items-center gap-2 font-medium text-[#2c3d30] text-[13px]">
+                         <TargetIcon className="w-4 h-4 shrink-0" />
+                         <span>Nutrition Data ({group.parsed.totals.calories} kcal)</span>
+                       </div>
+                       {isLogged ? (
+                         <span className="rounded-full bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                           Logged
+                         </span>
+                       ) : null}
+                    </div>
+                 </button>
+               </div>
+             );
           }
         })}
       </div>
@@ -3339,20 +3442,26 @@ function ChatHistoryPanel({
 }
 
 function MessageModalRouter({
-  isLogged,
+  loggedItem,
+  contextName,
   message,
+  selectedIsoDate,
   onClose,
   onLogSave,
+  onRefetchUpdate,
 }: {
-  isLogged: boolean;
+  loggedItem?: LoggedNutritionItem;
+  contextName?: string;
   message: ChatMessage;
+  selectedIsoDate?: string;
   onClose: () => void;
-  onLogSave: (totals: { calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
+  onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
+  onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserQueryText: string) => void;
 }) {
   const parsed = parseNutritionFromText(message.message);
 
   if (parsed) {
-    return <NutritionModal isLogged={isLogged} parsed={parsed} onClose={onClose} onLogSave={onLogSave} />;
+    return <NutritionModal messageId={message.id} selectedIsoDate={selectedIsoDate} loggedItem={loggedItem} contextName={contextName} parsed={parsed} onClose={onClose} onLogSave={onLogSave} onRefetchUpdate={onRefetchUpdate} />;
   }
 
   return <PlainMessageModal text={message.message} onClose={onClose} />;
@@ -3360,7 +3469,7 @@ function MessageModalRouter({
 
 function PlainMessageModal({ text, onClose }: { text: string; onClose: () => void }) {
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
+    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-md rounded-[24px] border border-[#ecece7] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
         <div className="flex items-start justify-between gap-4 mb-4">
           <p className="text-[16px] font-semibold text-[#111111]">Assistant</p>
@@ -3381,25 +3490,92 @@ function PlainMessageModal({ text, onClose }: { text: string; onClose: () => voi
 }
 
 function NutritionModal({
-  isLogged,
+  messageId,
+  selectedIsoDate,
+  loggedItem,
+  contextName,
   parsed,
   onClose,
   onLogSave,
+  onRefetchUpdate,
 }: {
-  isLogged: boolean;
+  messageId: string;
+  selectedIsoDate?: string;
+  loggedItem?: LoggedNutritionItem;
+  contextName?: string;
   parsed: ParsedNutritionData;
   onClose: () => void;
-  onLogSave: (totals: { calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
+  onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
+  onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserQueryText: string) => void;
 }) {
-  const [cal, setCal] = useState(parsed.totals.calories);
-  const [pro, setPro] = useState(parsed.totals.protein);
-  const [crb, setCrb] = useState(parsed.totals.carbs);
-  const [fat, setFat] = useState(parsed.totals.fat);
-  const [exerciseMin, setExerciseMin] = useState(parsed.totals.exerciseMinutes);
-  const [exerciseCal, setExerciseCal] = useState(parsed.totals.exerciseCalories);
+  const isLogged = !!loggedItem;
+  const [query, setQuery] = useState(contextName ?? "");
+  const [isFetching, setIsFetching] = useState(false);
+  const { toast } = useToast();
+  
+  const [localParsed, setLocalParsed] = useState(parsed);
+  const [name, setName] = useState(loggedItem?.name ?? localParsed.dishName ?? contextName ?? "Logged Item");
+  const [cal, setCal] = useState(loggedItem?.calories ?? localParsed.totals.calories);
+  const [pro, setPro] = useState(loggedItem?.protein ?? localParsed.totals.protein);
+  const [crb, setCrb] = useState(loggedItem?.carbs ?? localParsed.totals.carbs);
+  const [fat, setFat] = useState(loggedItem?.fat ?? localParsed.totals.fat);
+  const [exerciseMin, setExerciseMin] = useState(loggedItem?.exerciseMinutes ?? localParsed.totals.exerciseMinutes);
+  const [exerciseCal, setExerciseCal] = useState(loggedItem?.exerciseCalories ?? localParsed.totals.exerciseCalories);
+  
+  const [showDetails, setShowDetails] = useState(false);
+
+  const handleRefetch = async () => {
+    const token = getStoredAccessToken();
+    if (!token || !query.trim()) return;
+    setIsFetching(true);
+    try {
+      const res = await chatApi.updateMessage(messageId, { type: "text", message: query }, token);
+      const outputText = res.data.assistantMessage.message;
+      console.log("Raw Output from Assistant:", outputText);
+
+      const newParsed = parseNutritionFromText(outputText);
+      console.log("Parsed Output:", newParsed);
+      
+      if (newParsed) {
+        setLocalParsed(newParsed);
+        setName(newParsed.dishName ? newParsed.dishName : query);
+        setCal(newParsed.totals.calories);
+        setPro(newParsed.totals.protein);
+        setCrb(newParsed.totals.carbs);
+        setFat(newParsed.totals.fat);
+        setExerciseMin(newParsed.totals.exerciseMinutes);
+        setExerciseCal(newParsed.totals.exerciseCalories);
+        
+        toast({
+           title: "Live Refetch Complete",
+           description: "Values have been successfully updated.",
+           variant: "success"
+        });
+        
+        if (onRefetchUpdate) {
+            onRefetchUpdate(res.data.assistantMessage, query);
+        }
+      } else {
+        toast({
+           title: "Refetch failed",
+           description: "Could not parse valid nutrition data for that query.",
+           variant: "error"
+        });
+      }
+    } catch (err) {
+      console.error("Refetch Error:", err);
+      toast({
+         title: "Refetch Error",
+         description: "Failed to connect to the backend or chat API.",
+         variant: "error"
+      });
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
+    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
       <div className="flex flex-col max-h-[85vh] w-full max-w-md rounded-[24px] border border-[#ecece7] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
         <div className="flex shrink-0 items-start justify-between gap-4 mb-4">
           <div>
@@ -3421,9 +3597,55 @@ function NutritionModal({
         </div>
 
         <div className="flex-1 overflow-y-auto pr-1 space-y-5">
-          <div className="rounded-[16px] bg-[#f7f7f3] px-3 py-3 text-[12px] leading-5 text-[#333538] whitespace-pre-wrap">
-            {parsed.originalText}
+          <div className="space-y-4">
+             <div className="space-y-3 p-3 rounded-[16px] bg-[#f7f7f3] border border-[#ecece7]">
+               <label className="block">
+                 <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider mb-1">Query</span>
+                 <p className="text-[11px] text-[#8a9198] mb-2">Edit your query and refetch from AI if the initial estimate was incorrect.</p>
+                 <input
+                   type="text"
+                   value={query}
+                   onChange={(e) => setQuery(e.target.value)}
+                   className="w-full rounded-[14px] border border-[#d3d3cd] bg-white px-4 py-3 text-[14px] text-[#111111] outline-none transition-colors focus:border-green-600 mb-3"
+                 />
+                 <button
+                   type="button"
+                   onClick={handleRefetch}
+                   disabled={isFetching || !query.trim()}
+                   className="w-full flex items-center justify-center rounded-[14px] bg-green-800 py-3.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+                 >
+                   {isFetching ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Refetching...
+                      </>
+                   ) : "Refetch Query"}
+                 </button>
+               </label>
+             </div>
+
+             <label className="block">
+               <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider mb-1">Name</span>
+               <input
+                 type="text"
+                 value={name}
+                 onChange={(e) => setName(e.target.value)}
+                 className="w-full rounded-[14px] border border-[#ecece7] bg-[#fcfcf9] px-4 py-3 text-[15px] text-[#111111] font-medium outline-none transition-colors focus:border-green-600"
+               />
+             </label>
           </div>
+
+          <div className="rounded-[16px] bg-[#f7f7f3] px-3 py-3 text-[12px] leading-5 text-[#333538] whitespace-pre-wrap">
+            {localParsed.originalText}
+          </div>
+          
+          <button 
+             onClick={() => setShowDetails(true)} 
+             className="w-full flex items-center justify-between rounded-[14px] border border-[#ecece7] bg-white px-4 py-3.5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-[#f7f7f3]"
+          >
+             View Detailed Analysis
+             <span className="text-[#8a9198]">→</span>
+          </button>
 
           <div className="space-y-3">
             <p className="text-[14px] font-semibold text-[#111111]">Edit Macros</p>
@@ -3489,22 +3711,87 @@ function NutritionModal({
         <div className="shrink-0 pt-5 mt-auto border-t border-[#f2efe8]">
           <button
             type="button"
-            className={cn(
-              "w-full rounded-[14px] py-3.5 text-[15px] font-semibold text-white transition-opacity active:scale-[0.98]",
-              isLogged ? "cursor-not-allowed bg-[#aab7ad]" : "bg-green-800 hover:opacity-90",
-            )}
-            disabled={isLogged}
-            onClick={() => onLogSave({ 
-              calories: cal, 
-              protein: pro, 
-              carbs: crb, 
-              fat: fat, 
-              exerciseMinutes: exerciseMin, 
-              exerciseCalories: exerciseCal 
-            })}
+            className="w-full rounded-[14px] bg-green-800 py-3.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.98]"
+            onClick={() => {
+              onLogSave({ 
+                name,
+                calories: cal, 
+                protein: pro, 
+                carbs: crb, 
+                fat: fat, 
+                exerciseMinutes: exerciseMin, 
+                exerciseCalories: exerciseCal 
+              });
+              setTimeout(() => {
+                onClose();
+              }, 400); // Small 400ms delay to feel the click response before closing
+            }}
           >
-            {isLogged ? "Already Logged" : "Log to Today"}
+            {isLogged 
+               ? "Update Log" 
+               : (!selectedIsoDate || selectedIsoDate === getIsoDate(new Date()) 
+                   ? "Log to Today" 
+                   : `Log to ${new Date(selectedIsoDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`)}
           </button>
+        </div>
+      </div>
+      
+      {showDetails && (
+        <DishDetailModal 
+          parsed={localParsed} 
+          onClose={() => setShowDetails(false)} 
+        />
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ label, value, unit, indent = false }: { label: string, value: number | undefined, unit: string, indent?: boolean }) {
+  const displayValue = value !== undefined ? `${value}${unit}` : `-`;
+  return (
+    <div className={`flex justify-between border-b border-[#f2efe8] py-4 ${indent ? 'pl-6' : 'px-1'}`}>
+       <span className="text-[14px] text-[#333538] font-medium">{label}</span>
+       <span className="text-[14px] text-[#111111] font-semibold">{displayValue}</span>
+    </div>
+  );
+}
+
+function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onClose: () => void }) {
+  const t = parsed.totals;
+  return (
+    <div className="absolute inset-0 z-[80] flex items-end sm:items-center justify-center bg-[#2c2f32]/18 p-0 sm:p-4 backdrop-blur-[2px]">
+      <div className="flex flex-col max-h-[85vh] w-full max-w-md rounded-t-[28px] sm:rounded-[24px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] h-full sm:h-auto">
+        <div className="flex shrink-0 items-center justify-between p-4 border-b border-[#ecece7]">
+          <button onClick={onClose} className="p-2 -ml-2 text-[#111111] hover:bg-[#f3f3ee] rounded-full transition-colors">
+            <ArrowLeftIcon />
+          </button>
+          <p className="text-[16px] font-semibold text-[#111111]">{parsed.dishName || "Detailed Nutrition"}</p>
+          <div className="w-9" />
+        </div>
+        <div className="flex-1 overflow-y-auto w-full px-4 pb-8">
+           <DetailRow label="Total Carbohydrates" value={t.carbs} unit="g" />
+           <DetailRow label="Dietary Fibre" value={t.dietaryFibre} unit="g" indent />
+           <DetailRow label="Sugar" value={t.sugar} unit="g" indent />
+           <DetailRow label="Added Sugars" value={t.addedSugars} unit="g" indent />
+           <DetailRow label="Sugar Alcohols" value={t.sugarAlcohols} unit="g" indent />
+           <DetailRow label="Net Carbs" value={t.netCarbs} unit="g" indent />
+           
+           <DetailRow label="Protein" value={t.protein} unit="g" />
+           
+           <DetailRow label="Total Fat" value={t.fat} unit="g" />
+           <DetailRow label="Saturated Fat" value={t.saturatedFat} unit="g" indent />
+           <DetailRow label="Trans Fat" value={t.transFat} unit="g" indent />
+           <DetailRow label="Polyunsaturated Fat" value={t.polyunsaturatedFat} unit="g" indent />
+           <DetailRow label="Monounsaturated Fat" value={t.monounsaturatedFat} unit="g" indent />
+           
+           <DetailRow label="Cholesterol" value={t.cholesterol} unit="mg" />
+           <DetailRow label="Sodium" value={t.sodium} unit="mg" />
+           <DetailRow label="Calcium" value={t.calcium} unit="mg" />
+           <DetailRow label="Iron" value={t.iron} unit="mg" />
+           <DetailRow label="Potassium" value={t.potassium} unit="mg" />
+           <DetailRow label="Vitamin A" value={t.vitaminA} unit="IU" />
+           <DetailRow label="Vitamin C" value={t.vitaminC} unit="mg" />
+           <DetailRow label="Vitamin D" value={t.vitaminD} unit="IU" />
         </div>
       </div>
     </div>

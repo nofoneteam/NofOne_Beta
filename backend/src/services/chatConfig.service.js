@@ -37,6 +37,7 @@ const DEFAULT_TEXT_SYSTEM_PROMPT = `You are Nofone's personal health and wellnes
 8. BREVITY — keep answers concise, practical, and actionable. No fluff. Use bullet points or numbered lists for multi-item responses.
 
 9. FOOD LOGS & MACROS — If the user mentions eating any food item OR lists food items (like "Dal makhni and tandoori roti", "chole bhature", "dosa", "rice", "pasta", etc.) — whether or not they explicitly say "I ate" — you MUST provide a reasonable nutritional estimate. ALWAYS format ONLY the food breakdown EXACTLY as follows (with no variations):
+- Dish Name: [Concise Name]
 - Calories: [X]
 - Protein: [X]g
 - Carbs: [X]g
@@ -118,7 +119,7 @@ async function getResolvedSystemPrompts() {
   const config = await getStoredConfig();
 
   const baseText = config?.systemPrompt?.trim() || DEFAULT_TEXT_SYSTEM_PROMPT;
-  const enforcementText = `\n\n⚠️ CRITICAL ENFORCEMENT ⚠️\n\nFOOD ITEMS (including plain mentions without "I ate"):\nIf the user MENTIONS EATING OR LISTS FOOD ITEMS (e.g., "dal makhni", "tandoori chicken", "chole bhature", "dosa", "pizza", "rice", "pasta", etc.) — even if they do NOT say "I ate" — you MUST provide nutritional macros. ALWAYS format EXACTLY as:\n- Calories: [X]\n- Protein: [X]g\n- Carbs: [X]g\n- Fat: [X]g\n\nEXERCISE ONLY (no food mention):\nIf the user ONLY mentions exercising/working out WITHOUT mentioning food, you MUST provide exercise data ONLY. ALWAYS format EXACTLY as:\n- Exercise Minutes: [X]\n- Burned Calories: [X]\nDO NOT include food macros when only exercise is mentioned.\n\nDO NOT MIX: Never provide food macros for exercise-only messages. Never provide exercise data when only food is mentioned.`;
+  const enforcementText = `\n\n⚠️ CRITICAL ENFORCEMENT ⚠️\n\nFOOD ITEMS (including plain mentions without "I ate"):\nIf the user MENTIONS EATING OR LISTS FOOD ITEMS (e.g., "dal makhni", "pizza", "rice") — even if they do NOT say "I ate" — you MUST provide a full nutritional breakdown. ALWAYS format EXACTLY as:\n- Dish Name: [Concise Name]\n- Calories: [X]\n- Protein: [X]g\n- Total Carbohydrates: [X]g\n  - Dietary Fibre: [X]g\n  - Sugar: [X]g\n  - Added Sugars: [X]g\n  - Sugar Alcohols: [X]g\n  - Net Carbs: [X]g\n- Total Fat: [X]g\n  - Saturated Fat: [X]g\n  - Trans Fat: [X]g\n  - Polyunsaturated Fat: [X]g\n  - Monounsaturated Fat: [X]g\n- Cholesterol: [X]mg\n- Sodium: [X]mg\n- Calcium: [X]mg\n- Iron: [X]mg\n- Potassium: [X]mg\n- Vitamin A: [X]IU\n- Vitamin C: [X]mg\n- Vitamin D: [X]IU\n\nEXERCISE ONLY (no food mention):\nIf the user ONLY mentions exercising/working out WITHOUT mentioning food, you MUST provide exercise data ONLY. ALWAYS format EXACTLY as:\n- Exercise Minutes: [X]\n- Burned Calories: [X]\nDO NOT include food macros when only exercise is mentioned.\n\nDO NOT MIX: Never provide food macros for exercise-only messages. Never provide exercise data when only food is mentioned.`;
 
   return {
     text: baseText.includes("FOOD LOGS & MACROS") ? baseText : baseText + enforcementText,

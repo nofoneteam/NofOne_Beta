@@ -108,6 +108,27 @@ async function saveMessage({ userId, message, role, type, metadata = null }) {
   return payload;
 }
 
+async function updateMessage({ userId, messageId, message, role, type, metadata }) {
+  const db = getFirestore();
+  const payload = ChatMessageModel.createPayload(messageId, {
+    userId,
+    message,
+    role,
+    type,
+    metadata,
+  });
+
+  const messageRef = db
+    .collection(UserModel.collectionName)
+    .doc(userId)
+    .collection(ChatMessageModel.collectionName)
+    .doc(messageId);
+
+  await messageRef.set(payload);
+
+  return payload;
+}
+
 async function getPreviousMessages(userId, limit = env.chatContextLimit) {
   const db = getFirestore();
   const messagesSnapshot = await db
@@ -306,9 +327,65 @@ async function handleChatTurn(userId, payload) {
   return response;
 }
 
+async function updateChatTurn(userId, oldAssistantId, payload) {
+  const db = getFirestore();
+  const collectionRef = db.collection(UserModel.collectionName).doc(userId).collection(ChatMessageModel.collectionName);
+  
+  const historySnapshot = await collectionRef.orderBy("timestamp", "desc").get();
+  const allMessages = serializeQuerySnapshot(historySnapshot).reverse();
+  
+  const assistantIdx = allMessages.findIndex(m => m.id === oldAssistantId);
+  if (assistantIdx === -1) {
+    throw new Error("Cannot find previous assistant message to update.");
+  }
+  const oldAssistantMsg = allMessages[assistantIdx];
+  const oldUserMsg = assistantIdx > 0 ? allMessages[assistantIdx - 1] : null;
+  
+  const normalizedUserMessage = payload.message || "Please analyze this image for meal composition, calories, macros, or fitness relevance only.";
+  const previousHistory = allMessages.slice(0, Math.max(0, assistantIdx - 1));
+
+  let rawAssistantReply;
+  if (isHealthDomainRequest({ ...payload, message: normalizedUserMessage }, previousHistory)) {
+      rawAssistantReply = await generateHealthAssistantReply(
+          { recentMessages: previousHistory, memoryBlock: "", userContextSummary: "" },
+          { ...payload, message: normalizedUserMessage }
+      );
+  } else {
+      rawAssistantReply = buildHealthDomainRefusal();
+  }
+  
+  const assistantReply = hasDisallowedAssistantTone(rawAssistantReply) ? buildInvalidMessageRefusal() : rawAssistantReply;
+
+  let replacedUserMessage = oldUserMsg;
+  if (oldUserMsg && oldUserMsg.role === "user") {
+    replacedUserMessage = await updateMessage({
+      userId,
+      messageId: oldUserMsg.id,
+      message: normalizedUserMessage,
+      role: "user",
+      type: payload.type || "text"
+    });
+  }
+
+  const replacedAssistantMessage = await updateMessage({
+    userId,
+    messageId: oldAssistantId,
+    message: assistantReply,
+    role: "assistant",
+    type: "text",
+  });
+
+  return {
+    userMessage: replacedUserMessage,
+    assistantMessage: replacedAssistantMessage,
+    responseSource: "refetch_overwrite"
+  };
+}
+
 module.exports = {
   saveMessage,
   getPreviousMessages,
   getMessagesByDate,
   handleChatTurn,
+  updateChatTurn,
 };
