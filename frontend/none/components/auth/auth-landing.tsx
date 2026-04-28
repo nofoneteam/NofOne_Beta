@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
-import { signInWithPhoneNumber, signInWithPopup } from "firebase/auth";
+import { signInWithPhoneNumber } from "firebase/auth";
 import { ChevronRight, Dumbbell, Heart, Salad, TrendingUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import { authApi, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
 import { getStoredAccessToken, persistAccessToken } from "@/lib/auth/session";
 import {
   createPhoneRecaptchaVerifier,
-  createGoogleProvider,
   getFirebaseAuth,
   isFirebaseClientConfigured,
 } from "@/lib/firebase/client";
@@ -26,29 +25,6 @@ import { PhoneNumberInput } from "./phone-number-input";
 
 type AuthMode = "login" | "signup";
 type OtpMethod = "email" | "phone";
-
-function GoogleIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
-      <path
-        d="M21.8 12.23c0-.73-.06-1.25-.2-1.8H12.2v3.56h5.52c-.11.88-.68 2.2-1.94 3.09l-.02.12 2.86 2.18.2.02c1.88-1.71 2.98-4.24 2.98-7.17Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12.2 21.9c2.7 0 4.97-.87 6.63-2.38l-3.16-2.32c-.85.58-1.99.99-3.47.99-2.65 0-4.9-1.71-5.7-4.09l-.12.01-2.98 2.27-.04.11c1.65 3.21 5.05 5.41 8.84 5.41Z"
-        fill="#34A853"
-      />
-      <path
-        d="M6.5 14.1a5.76 5.76 0 0 1-.33-1.9c0-.67.12-1.3.31-1.9l-.01-.13-3.02-2.3-.1.05A9.6 9.6 0 0 0 2.3 12.2c0 1.54.37 3 1.04 4.28l3.16-2.38Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12.2 6.2c1.87 0 3.14.79 3.86 1.45l2.82-2.7C17.15 3.4 14.9 2.5 12.2 2.5c-3.79 0-7.19 2.2-8.84 5.41l3.13 2.38c.82-2.38 3.08-4.09 5.71-4.09Z"
-        fill="#EA4335"
-      />
-    </svg>
-  );
-}
 
 function ArrowBadge() {
   return (
@@ -89,7 +65,7 @@ const aboutPrinciples = ["Ad-free", "Subscription-free", "Community-powered"];
 export function AuthLanding({ initialReferralCode }: { initialReferralCode?: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("signup");
-  const [otpMethod, setOtpMethod] = useState<OtpMethod>("email");
+  const [otpMethod, setOtpMethod] = useState<OtpMethod>("phone");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
@@ -265,40 +241,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
     }
   }
 
-  async function handleGoogleAuth() {
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      if (!isFirebaseClientConfigured()) {
-        throw new Error(
-          "Google OAuth is not configured in the frontend environment yet. Add the NEXT_PUBLIC_FIREBASE_* values first.",
-        );
-      }
-
-      const credential = await signInWithPopup(
-        getFirebaseAuth(),
-        createGoogleProvider(),
-      );
-      const idToken = await credential.user.getIdToken();
-      const response = await authApi.googleLogin({
-        idToken,
-        ...(mode === "signup" && activeReferralCode ? { referralCode: activeReferralCode } : {}),
-      });
-
-      persistAccessToken(response.data.accessToken);
-      if (mode === "signup") {
-        clearStoredReferralCode();
-      }
-      router.push("/home");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to continue with Google");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   return (
     <main className="min-h-screen bg-[#eef8ef] px-4 py-6 text-green-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-7xl items-center justify-center">
@@ -374,6 +316,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
+              {/*
               <button
                 type="button"
                 onClick={() => {
@@ -391,8 +334,9 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                       : "Continue with Google"}
                 </span>
               </button>
-
+              */}
               <div className="grid grid-cols-2 gap-3">
+                {/*
                 <button
                   type="button"
                   onClick={() => setOtpMethod("email")}
@@ -405,11 +349,12 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                 >
                   Continue with email
                 </button>
+                */}
                 <button
                   type="button"
                   onClick={() => setOtpMethod("phone")}
                   className={cn(
-                    "rounded-2xl border px-4 py-3 text-sm font-medium transition-colors",
+                    "col-span-2 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors",
                     otpMethod === "phone"
                       ? "border-green-600 bg-green-50 text-green-950"
                       : "border-green-100 bg-white text-green-700 hover:border-green-300",

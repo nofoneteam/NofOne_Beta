@@ -156,13 +156,41 @@ async function analyzeImageWithGroqDirectly(payload) {
 
   const macroFormatInstruction = `
 
-CRITICAL OUTPUT FORMAT — You MUST output the macro breakdown in EXACTLY this format, with no variations, approximations, tildes, or ranges:
+CRITICAL OUTPUT FORMAT:
+- Dish Name: [short suitable title for the image or meal]
 - Calories: [single integer]
 - Protein: [X]g
 - Carbs: [X]g
+- Dietary Fibre: [X]g
+- Starch: [X]g
+- Sugar: [X]g
+- Added Sugars: [X]g
+- Sugar Alcohols: [X]g
+- Other Carbs: [X]g
+- Net Carbs: [X]g
 - Fat: [X]g
+- Saturated Fat: [X]g
+- Trans Fat: [X]g
+- Polyunsaturated Fat: [X]g
+- Monounsaturated Fat: [X]g
+- Other Fat: [X]g
+- Cholesterol: [X]mg
+- Sodium: [X]mg
+- Calcium: [X]mg
+- Iron: [X]mg
+- Potassium: [X]mg
+- Vitamin A: [X] IU
+- Vitamin C: [X]mg
+- Vitamin D: [X] IU
 
-If you cannot determine exact values, use your best single-value estimate. Never write "~350" or "350-400" — always write a single integer like "350".`;
+CONSISTENCY RULES:
+- Use only single-value estimates. Never use ranges, tildes, or approximations symbols.
+- Total carbs MUST equal Dietary Fibre + Starch + Sugar + Sugar Alcohols + Other Carbs.
+- Net Carbs MUST equal Total Carbs - Dietary Fibre - Sugar Alcohols.
+- Total fat MUST equal Saturated Fat + Trans Fat + Polyunsaturated Fat + Monounsaturated Fat + Other Fat.
+- Added Sugars must never exceed Sugar.
+- If a value is truly negligible, write 0 in the same format.
+- After the structured nutrition block, provide a brief health-focused explanation of what is visible and why these estimates were chosen.`;
 
   const completion = await groq.chat.completions.create({
     model: env.groq.visionModel,
@@ -171,7 +199,7 @@ If you cannot determine exact values, use your best single-value estimate. Never
       {
         role: "system",
         content:
-          "You are a strict health and fitness image analyst. Identify all food items, meals, or ingredients visible in the image and provide precise nutritional estimates. Only describe health-relevant details such as food items, meals, ingredients, calorie estimates, macro estimates, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis." + macroFormatInstruction,
+          "You are a strict health and fitness image analyst. Identify all food items, meals, or ingredients visible in the image and provide precise nutritional estimates. Only describe health-relevant details such as food items, meals, ingredients, calorie estimates, macro estimates, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis. Before responding, verify the arithmetic consistency of every total against its subcomponents." + macroFormatInstruction,
       },
       {
         role: "user",

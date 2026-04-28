@@ -344,6 +344,17 @@ async function updateChatTurn(userId, oldAssistantId, payload) {
   const normalizedUserMessage = payload.message || "Please analyze this image for meal composition, calories, macros, or fitness relevance only.";
   const previousHistory = allMessages.slice(0, Math.max(0, assistantIdx - 1));
 
+  if (payload.removeImage === "true" || payload.removeImage === true) {
+      delete payload.imageUrl;
+      if (oldUserMsg?.metadata) {
+          delete oldUserMsg.metadata.imageUrl;
+      }
+      payload.type = "text";
+  } else if (!payload.imageUrl && oldUserMsg?.metadata?.imageUrl) {
+      payload.imageUrl = oldUserMsg.metadata.imageUrl;
+      payload.type = oldUserMsg.type || "image";
+  }
+
   let rawAssistantReply;
   if (isHealthDomainRequest({ ...payload, message: normalizedUserMessage }, previousHistory)) {
       rawAssistantReply = await generateHealthAssistantReply(
@@ -358,12 +369,20 @@ async function updateChatTurn(userId, oldAssistantId, payload) {
 
   let replacedUserMessage = oldUserMsg;
   if (oldUserMsg && oldUserMsg.role === "user") {
+    const updatedMetadata = { ...(oldUserMsg.metadata || {}) };
+    if (payload.imageUrl) {
+        updatedMetadata.imageUrl = payload.imageUrl;
+    } else if (payload.removeImage === "true" || payload.removeImage === true) {
+        delete updatedMetadata.imageUrl;
+    }
+
     replacedUserMessage = await updateMessage({
       userId,
       messageId: oldUserMsg.id,
       message: normalizedUserMessage,
       role: "user",
-      type: payload.type || "text"
+      type: payload.type || oldUserMsg.type,
+      metadata: Object.keys(updatedMetadata).length > 0 ? updatedMetadata : undefined,
     });
   }
 

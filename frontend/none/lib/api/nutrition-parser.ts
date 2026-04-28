@@ -15,6 +15,8 @@ export interface ParsedNutritionData {
         carbs: number;
         fat: number;
         dietaryFibre?: number;
+        starch?: number;
+        otherCarbs?: number;
         sugar?: number;
         addedSugars?: number;
         sugarAlcohols?: number;
@@ -23,6 +25,7 @@ export interface ParsedNutritionData {
         transFat?: number;
         polyunsaturatedFat?: number;
         monounsaturatedFat?: number;
+        otherFat?: number;
         cholesterol?: number;
         sodium?: number;
         calcium?: number;
@@ -76,6 +79,48 @@ function extractOptionalFloat(text: string, patterns: RegExp[]): number | undefi
     return val === -1 ? undefined : val;
 }
 
+function roundNutritionValue(value: number): number {
+    return Number(value.toFixed(2));
+}
+
+function sumDefinedValues(...values: Array<number | undefined>): number | undefined {
+    const definedValues = values.filter((value): value is number => value != null && !Number.isNaN(value));
+
+    if (!definedValues.length) {
+        return undefined;
+    }
+
+    return roundNutritionValue(definedValues.reduce((sum, value) => sum + value, 0));
+}
+
+function normaliseNutritionTotals(input: ParsedNutritionData["totals"]): ParsedNutritionData["totals"] {
+    const carbComponentSum = sumDefinedValues(
+        input.dietaryFibre,
+        input.starch,
+        input.sugar,
+        input.sugarAlcohols,
+        input.otherCarbs,
+    );
+    const netCarbDerivedTotal = sumDefinedValues(
+        input.netCarbs,
+        input.dietaryFibre,
+        input.sugarAlcohols,
+    );
+    const fatComponentSum = sumDefinedValues(
+        input.saturatedFat,
+        input.transFat,
+        input.polyunsaturatedFat,
+        input.monounsaturatedFat,
+        input.otherFat,
+    );
+
+    return {
+        ...input,
+        carbs: carbComponentSum ?? netCarbDerivedTotal ?? input.carbs,
+        fat: fatComponentSum ?? input.fat,
+    };
+}
+
 function removeRecapSections(text: string): string {
     return text
         .split(/\n\s*\n/)
@@ -115,8 +160,8 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
     let totalFat = 0;
     let dishName: string | undefined;
 
-    let dietaryFibre, sugar, addedSugars, sugarAlcohols, netCarbs;
-    let saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat;
+    let dietaryFibre, starch, otherCarbs, sugar, addedSugars, sugarAlcohols, netCarbs;
+    let saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat, otherFat;
     let cholesterol, sodium, calcium, iron, potassium;
     let vitaminA, vitaminC, vitaminD;
 
@@ -151,6 +196,8 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         ]);
 
         dietaryFibre = extractOptionalFloat(foodText, [/(?:fiber|fibre|dietary fibre)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
+        starch = extractOptionalFloat(foodText, [/(?:starch)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
+        otherCarbs = extractOptionalFloat(foodText, [/(?:other carbs|other carbohydrates|remaining carbs)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         sugar = extractOptionalFloat(foodText, [/(?:sugar)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         addedSugars = extractOptionalFloat(foodText, [/(?:added sugar[s]?)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         sugarAlcohols = extractOptionalFloat(foodText, [/(?:sugar alcohol[s]?)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
@@ -160,6 +207,7 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         transFat = extractOptionalFloat(foodText, [/(?:trans fat[s]?)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         polyunsaturatedFat = extractOptionalFloat(foodText, [/(?:polyunsaturated fat[s]?)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         monounsaturatedFat = extractOptionalFloat(foodText, [/(?:monounsaturated fat[s]?)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
+        otherFat = extractOptionalFloat(foodText, [/(?:other fat|remaining fat)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         
         cholesterol = extractOptionalFloat(foodText, [/(?:cholesterol)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
         sodium = extractOptionalFloat(foodText, [/(?:sodium)[\s:*_-]*(\d+(?:\.\d+)?)/i]);
@@ -187,12 +235,14 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
 
     return {
         items,
-        totals: {
+        totals: normaliseNutritionTotals({
             calories: totalCalories,
             protein: totalProtein,
             carbs: totalCarbs,
             fat: totalFat,
             dietaryFibre,
+            starch,
+            otherCarbs,
             sugar,
             addedSugars,
             sugarAlcohols,
@@ -201,6 +251,7 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
             transFat,
             polyunsaturatedFat,
             monounsaturatedFat,
+            otherFat,
             cholesterol,
             sodium,
             calcium,
@@ -211,7 +262,7 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
             vitaminD,
             exerciseMinutes: exerciseMinutes,
             exerciseCalories: exerciseCalories,
-        },
+        }),
         originalText: text,
         dishName,
     };

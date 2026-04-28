@@ -69,6 +69,8 @@ export interface LoggedNutritionItem {
   exerciseCalories: number;
 }
 
+type QueryKind = "text" | "image";
+
 type SidebarItem = {
   key: string;
   id: HomeSectionKey | "logout";
@@ -123,9 +125,21 @@ function readErrorMessage(error: unknown) {
   return "Something went wrong.";
 }
 
-function getChatImageUrl(message: ChatMessage) {
-  const imageUrl = message.metadata?.imageUrl;
+function getChatImageUrl(message?: ChatMessage | null) {
+  const imageUrl = message?.metadata?.imageUrl;
   return typeof imageUrl === "string" && imageUrl.trim() ? imageUrl : null;
+}
+
+function classifyQueryKind(message?: ChatMessage | null, fallbackImageUrl?: string | null): QueryKind {
+  if (fallbackImageUrl?.trim()) {
+    return "image";
+  }
+
+  if (!message) {
+    return "text";
+  }
+
+  return message.type === "image" || !!getChatImageUrl(message) ? "image" : "text";
 }
 
 function renderInlineFormattedText(text: string) {
@@ -420,6 +434,7 @@ export function DashboardShell() {
   const [chatImagePreview, setChatImagePreview] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
+  const [selectedSourceMessage, setSelectedSourceMessage] = useState<ChatMessage | null>(null);
   const [selectedMessageContext, setSelectedMessageContext] = useState<string | undefined>(undefined);
   const [loggedNutritionItems, setLoggedNutritionItems] = useState<Record<string, LoggedNutritionItem>>({});
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -939,7 +954,8 @@ export function DashboardShell() {
         response.data.userMessage,
         response.data.assistantMessage,
       ]);
-      setSelectedMessageContext(chatInput);
+      setSelectedSourceMessage(response.data.userMessage);
+      setSelectedMessageContext(response.data.userMessage.message || chatInput);
       setSelectedMessage(response.data.assistantMessage);
       setChatInput("");
     } catch (error) {
@@ -1715,7 +1731,8 @@ export function DashboardShell() {
                     history={chatHistory}
                     loading={historyLoading}
                     loggedItems={loggedNutritionItems}
-                    onSelectMessage={(msg, contextName) => {
+                    onSelectMessage={(msg, sourceMsg, contextName) => {
+                      setSelectedSourceMessage(sourceMsg ?? null);
                       setSelectedMessageContext(contextName);
                       setSelectedMessage(msg);
                     }}
@@ -1730,13 +1747,17 @@ export function DashboardShell() {
               loggedItem={loggedNutritionItems[selectedMessage.id]}
               contextName={selectedMessageContext}
               message={selectedMessage}
+              sourceMessage={selectedSourceMessage}
               selectedIsoDate={selectedIsoDate}
-              onClose={() => setSelectedMessage(null)}
+              onClose={() => {
+                setSelectedMessage(null);
+                setSelectedSourceMessage(null);
+              }}
               onLogSave={(totals) => {
                 const dateIso = selectedIsoDate;
                 handleCaloriesMacrosUpdate(selectedMessage.id, totals, dateIso);
               }}
-              onRefetchUpdate={(newAssistantMsg, newUserQueryText) => {
+              onRefetchUpdate={(newAssistantMsg, newUserMsg) => {
                 const replacedMsg = { ...newAssistantMsg, id: selectedMessage.id };
                 
                 setChatHistory((prev) => {
@@ -1745,14 +1766,15 @@ export function DashboardShell() {
                   if (astIdx !== -1) {
                     newHistory[astIdx] = replacedMsg;
                     if (astIdx > 0 && newHistory[astIdx - 1].role === "user") {
-                      newHistory[astIdx - 1] = { ...newHistory[astIdx - 1], message: newUserQueryText };
+                      newHistory[astIdx - 1] = newUserMsg;
                     }
                   }
                   return newHistory;
                 });
                 
                 setSelectedMessage(replacedMsg);
-                setSelectedMessageContext(newUserQueryText);
+                setSelectedSourceMessage(newUserMsg);
+                setSelectedMessageContext(newUserMsg.message);
               }}
             />
           ) : null}
@@ -3307,7 +3329,7 @@ function ChatHistoryPanel({
   history: ChatMessage[];
   loading: boolean;
   loggedItems: Record<string, LoggedNutritionItem>;
-  onSelectMessage: (msg: ChatMessage, contextName?: string) => void;
+  onSelectMessage: (assistantMsg: ChatMessage, sourceMsg?: ChatMessage | null, contextName?: string) => void;
 }) {
   if (loading) {
     return (
@@ -3410,13 +3432,13 @@ function ChatHistoryPanel({
                <div key={`pair-${group.assistantMsg.id}`} className="flex justify-start w-full">
                  <button 
                    type="button" 
-                   onClick={() => onSelectMessage(group.assistantMsg, contextName)}
+                   onClick={() => onSelectMessage(group.assistantMsg, group.userMsg, contextName)}
                    className="w-full max-w-[90%] text-left bg-white border border-[#ecece7] rounded-[18px] shadow-sm overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.98]"
                  >
                     {group.userMsg && (
                       <div className="bg-[#fcfcf9] px-4 py-3 border-b border-[#ecece7]">
                          <p className="text-[14px] font-medium text-[#111111] line-clamp-2">
-                           "{group.userMsg.message}"
+                           &quot;{group.userMsg.message}&quot;
                          </p>
                       </div>
                     )}
@@ -3445,6 +3467,7 @@ function MessageModalRouter({
   loggedItem,
   contextName,
   message,
+  sourceMessage,
   selectedIsoDate,
   onClose,
   onLogSave,
@@ -3453,15 +3476,16 @@ function MessageModalRouter({
   loggedItem?: LoggedNutritionItem;
   contextName?: string;
   message: ChatMessage;
+  sourceMessage?: ChatMessage | null;
   selectedIsoDate?: string;
   onClose: () => void;
   onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
-  onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserQueryText: string) => void;
+  onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserMsg: ChatMessage) => void;
 }) {
   const parsed = parseNutritionFromText(message.message);
 
   if (parsed) {
-    return <NutritionModal messageId={message.id} selectedIsoDate={selectedIsoDate} loggedItem={loggedItem} contextName={contextName} parsed={parsed} onClose={onClose} onLogSave={onLogSave} onRefetchUpdate={onRefetchUpdate} />;
+    return <NutritionModal messageId={message.id} sourceMessage={sourceMessage} initialImageUrl={getChatImageUrl(sourceMessage ?? null) ?? undefined} selectedIsoDate={selectedIsoDate} loggedItem={loggedItem} contextName={contextName} parsed={parsed} onClose={onClose} onLogSave={onLogSave} onRefetchUpdate={onRefetchUpdate} />;
   }
 
   return <PlainMessageModal text={message.message} onClose={onClose} />;
@@ -3491,6 +3515,8 @@ function PlainMessageModal({ text, onClose }: { text: string; onClose: () => voi
 
 function NutritionModal({
   messageId,
+  sourceMessage,
+  initialImageUrl,
   selectedIsoDate,
   loggedItem,
   contextName,
@@ -3500,21 +3526,50 @@ function NutritionModal({
   onRefetchUpdate,
 }: {
   messageId: string;
+  sourceMessage?: ChatMessage | null;
+  initialImageUrl?: string;
   selectedIsoDate?: string;
   loggedItem?: LoggedNutritionItem;
   contextName?: string;
   parsed: ParsedNutritionData;
   onClose: () => void;
   onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
-  onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserQueryText: string) => void;
+  onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserMsg: ChatMessage) => void;
 }) {
   const isLogged = !!loggedItem;
-  const [query, setQuery] = useState(contextName ?? "");
+  const [query, setQuery] = useState(sourceMessage?.message || contextName || "");
   const [isFetching, setIsFetching] = useState(false);
   const { toast } = useToast();
   
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(initialImageUrl ?? null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (file: File) => {
+    if (imagePreview && !imagePreview.startsWith("http")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setImageRemoved(false);
+  };
+
+  const handleImageRemove = () => {
+    if (imagePreview && !imagePreview.startsWith("http")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImageFile(null);
+    setImagePreview(null);
+    setImageRemoved(true);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const defaultContextName = contextName === "Please analyze this image for meal composition, calories, macros, or fitness relevance only." ? "Image Analysis" : contextName;
   const [localParsed, setLocalParsed] = useState(parsed);
-  const [name, setName] = useState(loggedItem?.name ?? localParsed.dishName ?? contextName ?? "Logged Item");
+  const [name, setName] = useState(loggedItem?.name ?? localParsed.dishName ?? defaultContextName ?? "Logged Item");
   const [cal, setCal] = useState(loggedItem?.calories ?? localParsed.totals.calories);
   const [pro, setPro] = useState(loggedItem?.protein ?? localParsed.totals.protein);
   const [crb, setCrb] = useState(loggedItem?.carbs ?? localParsed.totals.carbs);
@@ -3523,18 +3578,26 @@ function NutritionModal({
   const [exerciseCal, setExerciseCal] = useState(loggedItem?.exerciseCalories ?? localParsed.totals.exerciseCalories);
   
   const [showDetails, setShowDetails] = useState(false);
+  const activeQueryKind = classifyQueryKind(
+    sourceMessage,
+    imageRemoved ? null : imagePreview || initialImageUrl || null,
+  );
 
   const handleRefetch = async () => {
     const token = getStoredAccessToken();
     if (!token || !query.trim()) return;
     setIsFetching(true);
     try {
-      const res = await chatApi.updateMessage(messageId, { type: "text", message: query }, token);
+      let res;
+      if (imageFile) {
+        res = await chatApi.updateImage(messageId, { message: query, image: imageFile }, token);
+      } else if (imageRemoved && classifyQueryKind(sourceMessage, initialImageUrl || null) === "image") {
+        res = await chatApi.updateMessage(messageId, { type: "text", message: query, removeImage: true }, token);
+      } else {
+        res = await chatApi.updateMessage(messageId, { type: "text", message: query }, token);
+      }
       const outputText = res.data.assistantMessage.message;
-      console.log("Raw Output from Assistant:", outputText);
-
       const newParsed = parseNutritionFromText(outputText);
-      console.log("Parsed Output:", newParsed);
       
       if (newParsed) {
         setLocalParsed(newParsed);
@@ -3553,7 +3616,7 @@ function NutritionModal({
         });
         
         if (onRefetchUpdate) {
-            onRefetchUpdate(res.data.assistantMessage, query);
+            onRefetchUpdate(res.data.assistantMessage, res.data.userMessage);
         }
       } else {
         toast({
@@ -3598,10 +3661,63 @@ function NutritionModal({
 
         <div className="flex-1 overflow-y-auto pr-1 space-y-5">
           <div className="space-y-4">
+             {/* Image Editor */}
+             {(imagePreview || imageRemoved || initialImageUrl) ? (
+               <div className="space-y-3 p-3 rounded-[16px] bg-[#f7f7f3] border border-[#ecece7]">
+                 <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider mb-1">Attached Image</span>
+                 {imagePreview ? (
+                   <div className="flex items-center gap-3">
+                     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[10px] border border-[#d3d3cd] bg-white">
+                       {/* eslint-disable-next-line @next/next/no-img-element */}
+                       <img src={imagePreview} alt="Attached query" className="h-full w-full object-cover" />
+                     </div>
+                     <button 
+                       type="button" 
+                       onClick={handleImageRemove}
+                       className="text-[12px] font-semibold text-red-600 hover:opacity-75 transition-opacity"
+                     >
+                       Remove Image
+                     </button>
+                   </div>
+                 ) : (
+                   <div>
+                     <input
+                       ref={fileInputRef}
+                       type="file"
+                       accept="image/*"
+                       className="hidden"
+                       onChange={(e) => {
+                         if (e.target.files?.[0]) handleImageSelect(e.target.files[0]);
+                       }}
+                     />
+                     <button 
+                       type="button"
+                       onClick={() => fileInputRef.current?.click()}
+                       className="flex items-center justify-center gap-2 rounded-[12px] border border-[#d3d3cd] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#111111] transition-colors hover:bg-[#f3f3ee] active:scale-[0.98]"
+                     >
+                       Attach Replacement Image
+                     </button>
+                   </div>
+                 )}
+               </div>
+             ) : null}
+
              <div className="space-y-3 p-3 rounded-[16px] bg-[#f7f7f3] border border-[#ecece7]">
                <label className="block">
-                 <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider mb-1">Query</span>
-                 <p className="text-[11px] text-[#8a9198] mb-2">Edit your query and refetch from AI if the initial estimate was incorrect.</p>
+                 <div className="mb-3 flex items-center justify-between gap-3">
+                   <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider">Query</span>
+                   <span className={cn(
+                     "inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
+                     activeQueryKind === "image"
+                       ? "bg-[#e6f4ea] text-green-900"
+                       : "bg-[#f3f1eb] text-[#44474b]",
+                   )}>
+                     {activeQueryKind} query
+                   </span>
+                 </div>
+                 <p className="text-[11px] text-[#8a9198] mb-2">
+                   Edit the query and refetch. Image queries keep the attached image unless you remove or replace it.
+                 </p>
                  <input
                    type="text"
                    value={query}
@@ -3619,7 +3735,7 @@ function NutritionModal({
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         Refetching...
                       </>
-                   ) : "Refetch Query"}
+                   ) : `Refetch ${activeQueryKind === "image" ? "Image" : "Text"} Query`}
                  </button>
                </label>
              </div>
@@ -3648,7 +3764,7 @@ function NutritionModal({
           </button>
 
           <div className="space-y-3">
-            <p className="text-[14px] font-semibold text-[#111111]">Edit Macros</p>
+           <p className="text-[14px] font-semibold text-[#111111]">Edit Macros</p>
             <div className="grid grid-cols-2 gap-3">
               <label className="block rounded-[12px] border border-[#ecece7] p-2 bg-[#fdfdfa]">
                 <span className="block text-[11px] font-semibold text-[#a0a5ad] uppercase tracking-wider">Calories</span>
@@ -3771,9 +3887,11 @@ function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onC
         <div className="flex-1 overflow-y-auto w-full px-4 pb-8">
            <DetailRow label="Total Carbohydrates" value={t.carbs} unit="g" />
            <DetailRow label="Dietary Fibre" value={t.dietaryFibre} unit="g" indent />
+           <DetailRow label="Starch" value={t.starch} unit="g" indent />
            <DetailRow label="Sugar" value={t.sugar} unit="g" indent />
            <DetailRow label="Added Sugars" value={t.addedSugars} unit="g" indent />
            <DetailRow label="Sugar Alcohols" value={t.sugarAlcohols} unit="g" indent />
+           <DetailRow label="Other Carbs" value={t.otherCarbs} unit="g" indent />
            <DetailRow label="Net Carbs" value={t.netCarbs} unit="g" indent />
            
            <DetailRow label="Protein" value={t.protein} unit="g" />
@@ -3783,6 +3901,7 @@ function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onC
            <DetailRow label="Trans Fat" value={t.transFat} unit="g" indent />
            <DetailRow label="Polyunsaturated Fat" value={t.polyunsaturatedFat} unit="g" indent />
            <DetailRow label="Monounsaturated Fat" value={t.monounsaturatedFat} unit="g" indent />
+           <DetailRow label="Other Fat" value={t.otherFat} unit="g" indent />
            
            <DetailRow label="Cholesterol" value={t.cholesterol} unit="mg" />
            <DetailRow label="Sodium" value={t.sodium} unit="mg" />

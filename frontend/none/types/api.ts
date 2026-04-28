@@ -148,6 +148,7 @@ export interface ChatMessagePayload {
   message?: string | null;
   type: "text" | "audio";
   includeDebug?: boolean;
+  removeImage?: boolean;
 }
 
 export interface ChatImagePayload {
