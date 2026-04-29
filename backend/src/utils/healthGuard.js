@@ -1,5 +1,5 @@
 const HEALTH_TOPIC_PATTERN =
-  /\b(health|healthy|fitness|fit|nutrition|nutritional|calorie|calories|macro|macros|carb|carbs|protein|fat|fats|fiber|meal|food|diet|exercise|workout|training|muscle|weight|bmi|hydration|water|sleep|vitamin|vitamins|mineral|minerals|body fat|steps|wellness|glucose|blood pressure|cholesterol|diabetes|fasting|intermittent|keto|vegan|vegetarian|gluten|lactose|supplement|protein shake|gym|cardio|steps|running|walking|yoga|meditation|stress|recovery|injury|pain|inflammation|dal|makhni|roti|tandoori|dosa|chole|paneer|chicken|fish|meat|vegetables|fruits|rice|bread|pasta|pizza|salad|soup|curry|ate|drank)\b/i;
+  /\b(health|healthy|fitness|fit|nutrition|nutritional|nutrient|nutrients|calorie|calories|macro|macros|carb|carbs|carbohydrate|carbohydrates|protein|fat|fats|fiber|fibre|meal|food|diet|exercise|workout|training|muscle|weight|bmi|hydration|water|sleep|vitamin|vitamins|mineral|minerals|body fat|steps|wellness|glucose|blood pressure|cholesterol|diabetes|fasting|intermittent|keto|vegan|vegetarian|gluten|lactose|supplement|protein shake|gym|cardio|steps|running|walking|walk|run|jog|cycling|cycle|yoga|meditation|stress|recovery|injury|pain|inflammation|dal|makhni|roti|tandoori|dosa|chole|paneer|chicken|fish|egg|eggs|meat|vegetables|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|ate|drank)\b/i;
 const GENERAL_ALLOWED_PATTERN =
   /\b(hi|hello|hey|hii|hiii|good morning|good afternoon|good evening|thanks|thank you|ok|okay|cool|great|nice|who are you|what can you do|help|my name is|i am|i'm)\b/i;
 const MEAL_LOG_PATTERN =
@@ -13,6 +13,12 @@ const ABUSIVE_PATTERN =
 const DISALLOWED_ASSISTANT_TONE_PATTERN =
   /\b(fuck|fucking|shit|bitch|asshole|bastard|mc|bc|madarchod|behenchod|chutiya|gandu|randi|harami|kamine|sala|haramkhor|idiot|stupid|dumb|moron|loser)\b/i;
 const MIN_MEANINGFUL_LENGTH = 4;
+const QUANTITY_UNIT_PATTERN =
+  /\b\d+(?:\.\d+)?\s*(?:g|gm|grams?|kg|kgs|ml|l|litre|litres|liter|liters|cup|cups|tbsp|tsp|teaspoon|teaspoons|tablespoon|tablespoons|slice|slices|piece|pieces|roti|rotis|chapati|chapatis|egg|eggs|glass|glasses|bowl|bowls|plate|plates|serving|servings|min|mins|minute|minutes|hr|hrs|hour|hours|km|kilometer|kilometers|mile|miles|steps?)\b/i;
+const FOOD_ITEM_PATTERN =
+  /\b(dal|makhni|roti|chapati|paratha|tandoori|dosa|idli|uttapam|chole|paneer|rajma|sabzi|poha|upma|khichdi|biryani|chicken|fish|egg|eggs|meat|vegetable|vegetables|fruit|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|orange|smoothie|shake|sandwich)\b/i;
+const EXERCISE_ITEM_PATTERN =
+  /\b(exercise|workout|training|gym|cardio|walk|walked|walking|run|ran|running|jog|jogged|jogging|cycle|cycled|cycling|swim|swimming|yoga|stretching|tennis|badminton|football|cricket|lifted|lifting|steps?)\b/i;
 
 function messageMentionsHealthTopic(message = "") {
   return HEALTH_TOPIC_PATTERN.test(message);
@@ -26,6 +32,21 @@ function messageLooksLikeMealLog(message = "") {
   return MEAL_LOG_PATTERN.test(message);
 }
 
+function messageLooksLikeQuantifiedHealthLog(message = "") {
+  const normalized = normalizeMessage(message);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    QUANTITY_UNIT_PATTERN.test(normalized) &&
+    (FOOD_ITEM_PATTERN.test(normalized) ||
+      EXERCISE_ITEM_PATTERN.test(normalized) ||
+      /\b(calories?|protein|carbs?|fat|fibre|fiber|sugar|sodium|cholesterol|hydration|water)\b/i.test(normalized))
+  );
+}
+
 function messageLooksLikeStandaloneFoodName(message = "") {
   const normalized = normalizeMessage(message);
 
@@ -35,6 +56,7 @@ function messageLooksLikeStandaloneFoodName(message = "") {
 
   if (
     messageLooksLikeMealLog(normalized) ||
+    messageLooksLikeQuantifiedHealthLog(normalized) ||
     messageMentionsHealthTopic(normalized) ||
     messageIsAllowedGeneralConversation(normalized) ||
     ABUSIVE_PATTERN.test(normalized)
@@ -49,6 +71,10 @@ function messageLooksLikeStandaloneFoodName(message = "") {
   const lettersOnly = normalized.replace(/[^a-z]/g, "");
 
   if (words.length === 0 || words.length > 7) {
+    return false;
+  }
+
+  if (!FOOD_ITEM_PATTERN.test(normalized)) {
     return false;
   }
 
@@ -82,6 +108,7 @@ function isLikelyNonsense(message = "") {
   if (
     messageIsAllowedGeneralConversation(normalized) ||
     messageLooksLikeMealLog(normalized) ||
+    messageLooksLikeQuantifiedHealthLog(normalized) ||
     messageMentionsHealthTopic(normalized) ||
     messageLooksLikeStandaloneFoodName(normalized)
   ) {
@@ -122,6 +149,7 @@ function isHealthDomainRequest(payload, previousMessages = []) {
     return (
       messageMentionsHealthTopic(payload.message) ||
       messageLooksLikeMealLog(payload.message) ||
+      messageLooksLikeQuantifiedHealthLog(payload.message) ||
       messageLooksLikeStandaloneFoodName(payload.message) ||
       messageIsAllowedGeneralConversation(payload.message)
     );
@@ -130,6 +158,7 @@ function isHealthDomainRequest(payload, previousMessages = []) {
   if (
     messageMentionsHealthTopic(payload.message) ||
     messageLooksLikeMealLog(payload.message) ||
+    messageLooksLikeQuantifiedHealthLog(payload.message) ||
     messageLooksLikeStandaloneFoodName(payload.message) ||
     messageIsAllowedGeneralConversation(payload.message)
   ) {
