@@ -20,6 +20,8 @@ const DailyLogModel = {
       exerciseMinutes: input.exerciseMinutes ?? existingData?.exerciseMinutes ?? 0,
       exerciseCalories:
         input.exerciseCalories ?? existingData?.exerciseCalories ?? 0,
+      nutritionDetails:
+        input.nutritionDetails ?? existingData?.nutritionDetails ?? null,
       weight: input.weight ?? existingData?.weight ?? null,
       ...buildTimestamps(existingData),
     });

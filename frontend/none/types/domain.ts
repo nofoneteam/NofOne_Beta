@@ -112,9 +112,37 @@ export interface DailyLog {
   sleepHours: number;
   exerciseMinutes: number;
   exerciseCalories: number;
+  nutritionDetails?: NutritionDetails | null;
   weight: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NutritionDetails {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  dietaryFibre?: number;
+  starch?: number;
+  sugar?: number;
+  addedSugars?: number;
+  sugarAlcohols?: number;
+  otherCarbs?: number;
+  netCarbs?: number;
+  saturatedFat?: number;
+  transFat?: number;
+  polyunsaturatedFat?: number;
+  monounsaturatedFat?: number;
+  otherFat?: number;
+  cholesterol?: number;
+  sodium?: number;
+  calcium?: number;
+  iron?: number;
+  potassium?: number;
+  vitaminA?: number;
+  vitaminC?: number;
+  vitaminD?: number;
 }
 
 export interface Session {
@@ -333,6 +361,7 @@ export interface ProgressReportEntry {
     exerciseCalories: number;
     weight: number | null;
   };
+  nutritionDetails?: NutritionDetails | null;
 }
 
 export interface ProgressReport {
@@ -385,6 +414,7 @@ export interface ChatTurnResponse {
 export interface DashboardSummary {
   date: string;
   dailyGoals: DailyGoalsSummary;
+  nutritionDetails?: NutritionDetails | null;
   weightTracker: WeightTrackerSummary;
   weeklySummary: WeeklySummary;
 }

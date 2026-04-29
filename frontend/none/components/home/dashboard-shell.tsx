@@ -51,6 +51,7 @@ import type {
   GoalMetric,
   HealthProfileWithUser,
   MedicalReport,
+  NutritionDetails,
   User,
   WeeklyReport,
   WeightTrackerSummary,
@@ -67,6 +68,7 @@ export interface LoggedNutritionItem {
   fat: number;
   exerciseMinutes: number;
   exerciseCalories: number;
+  nutritionDetails?: NutritionDetails | null;
 }
 
 type QueryKind = "text" | "image";
@@ -296,6 +298,77 @@ function getNutritionLogStorageKey(dateIso: string) {
   return `nofone:nutrition-logged:${dateIso}`;
 }
 
+function normaliseNutritionDetails(details?: Partial<NutritionDetails> | null): NutritionDetails | null {
+  if (!details) {
+    return null;
+  }
+
+  const normalized = Object.fromEntries(
+    Object.entries(details).filter(([, value]) => value != null && Number.isFinite(Number(value)))
+  ) as Partial<NutritionDetails>;
+
+  return Object.keys(normalized).length > 0 ? (normalized as NutritionDetails) : null;
+}
+
+function buildNutritionDetailsFromParsed(parsed: ParsedNutritionData): NutritionDetails {
+  return normaliseNutritionDetails({
+    calories: parsed.totals.calories,
+    protein: parsed.totals.protein,
+    carbs: parsed.totals.carbs,
+    fat: parsed.totals.fat,
+    dietaryFibre: parsed.totals.dietaryFibre,
+    starch: parsed.totals.starch,
+    sugar: parsed.totals.sugar,
+    addedSugars: parsed.totals.addedSugars,
+    sugarAlcohols: parsed.totals.sugarAlcohols,
+    otherCarbs: parsed.totals.otherCarbs,
+    netCarbs: parsed.totals.netCarbs,
+    saturatedFat: parsed.totals.saturatedFat,
+    transFat: parsed.totals.transFat,
+    polyunsaturatedFat: parsed.totals.polyunsaturatedFat,
+    monounsaturatedFat: parsed.totals.monounsaturatedFat,
+    otherFat: parsed.totals.otherFat,
+    cholesterol: parsed.totals.cholesterol,
+    sodium: parsed.totals.sodium,
+    calcium: parsed.totals.calcium,
+    iron: parsed.totals.iron,
+    potassium: parsed.totals.potassium,
+    vitaminA: parsed.totals.vitaminA,
+    vitaminC: parsed.totals.vitaminC,
+    vitaminD: parsed.totals.vitaminD,
+  }) || {
+    calories: parsed.totals.calories,
+    protein: parsed.totals.protein,
+    carbs: parsed.totals.carbs,
+    fat: parsed.totals.fat,
+  };
+}
+
+function sumNutritionDetails(
+  base?: Partial<NutritionDetails> | null,
+  delta?: Partial<NutritionDetails> | null,
+  direction: 1 | -1 = 1,
+): NutritionDetails | null {
+  const keys = new Set<string>([
+    ...Object.keys(base || {}),
+    ...Object.keys(delta || {}),
+  ]);
+
+  const next: Record<string, number> = {};
+
+  for (const key of keys) {
+    const baseValue = Number((base as Record<string, unknown> | null)?.[key] ?? 0);
+    const deltaValue = Number((delta as Record<string, unknown> | null)?.[key] ?? 0);
+    const total = Number((baseValue + direction * deltaValue).toFixed(2));
+
+    if (Math.abs(total) > 0.0001) {
+      next[key] = total;
+    }
+  }
+
+  return normaliseNutritionDetails(next);
+}
+
 function buildProfilePayload(profile: HealthProfileWithUser): UpsertHealthProfilePayload {
   return {
     age: profile.age,
@@ -437,6 +510,7 @@ export function DashboardShell() {
   const [selectedSourceMessage, setSelectedSourceMessage] = useState<ChatMessage | null>(null);
   const [selectedMessageContext, setSelectedMessageContext] = useState<string | undefined>(undefined);
   const [loggedNutritionItems, setLoggedNutritionItems] = useState<Record<string, LoggedNutritionItem>>({});
+  const [nutritionSummaryOpen, setNutritionSummaryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const { toast } = useToast();
   const activeSection = useMemo(() => getHomeSectionFromPath(pathname), [pathname]);
@@ -671,6 +745,7 @@ export function DashboardShell() {
               fat: 0,
               exerciseMinutes: 0,
               exerciseCalories: 0,
+              nutritionDetails: null,
             };
           }
         }
@@ -990,7 +1065,7 @@ export function DashboardShell() {
   }
 
   const handleCaloriesMacrosUpdate = async(messageId: string,
-    totals: { name: string; calories: number; carbs: number; protein: number; fat: number; exerciseMinutes: number; exerciseCalories: number },
+    totals: { name: string; calories: number; carbs: number; protein: number; fat: number; exerciseMinutes: number; exerciseCalories: number; nutritionDetails?: NutritionDetails | null },
     dateIso: string,) => {
     const token = getStoredAccessToken();
     if (!token) return;
@@ -1006,6 +1081,13 @@ export function DashboardShell() {
       exerciseMinutes: totals.exerciseMinutes - (existingLog?.exerciseMinutes ?? 0),
       exerciseCalories: totals.exerciseCalories - (existingLog?.exerciseCalories ?? 0),
     };
+    const currentNutritionDetails = normaliseNutritionDetails(dashboard?.nutritionDetails ?? null);
+    const withoutExistingDetails = existingLog?.nutritionDetails
+      ? sumNutritionDetails(currentNutritionDetails, existingLog.nutritionDetails, -1)
+      : currentNutritionDetails;
+    const nextNutritionDetails = totals.nutritionDetails
+      ? sumNutritionDetails(withoutExistingDetails, totals.nutritionDetails, 1)
+      : withoutExistingDetails;
 
     const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
     const prevCal = Math.round(
@@ -1026,6 +1108,7 @@ export function DashboardShell() {
         fat: prevFat + diff.fat,
         exerciseMinutes: prevExeMin + diff.exerciseMinutes,
         exerciseCalories: prevExeCal + diff.exerciseCalories,
+        nutritionDetails: nextNutritionDetails,
       }, token);
       
       toast({
@@ -1043,6 +1126,7 @@ export function DashboardShell() {
         fat: totals.fat,
         exerciseMinutes: totals.exerciseMinutes,
         exerciseCalories: totals.exerciseCalories,
+        nutritionDetails: totals.nutritionDetails ?? null,
       };
 
       const nextLoggedItems = { ...loggedNutritionItems, [messageId]: nextItem };
@@ -1323,6 +1407,10 @@ export function DashboardShell() {
     if (metricKey === "calories") {
       const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
       logPayload.calories = normalizedValue + prevExeCal;
+      logPayload.nutritionDetails = normaliseNutritionDetails({
+        ...(dashboard?.nutritionDetails ?? {}),
+        calories: normalizedValue + prevExeCal,
+      });
     } else if (metricKey === "exerciseMinutes") {
       const prevExeMin = Math.round(metricValue(dashboard, "exerciseMinutes")?.current ?? 0);
       const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
@@ -1336,10 +1424,22 @@ export function DashboardShell() {
       logPayload.sleepHours = normalizedValue;
     } else if (metricKey === "carbs") {
       logPayload.carbs = normalizedValue;
+      logPayload.nutritionDetails = normaliseNutritionDetails({
+        ...(dashboard?.nutritionDetails ?? {}),
+        carbs: normalizedValue,
+      });
     } else if (metricKey === "protein") {
       logPayload.protein = normalizedValue;
+      logPayload.nutritionDetails = normaliseNutritionDetails({
+        ...(dashboard?.nutritionDetails ?? {}),
+        protein: normalizedValue,
+      });
     } else if (metricKey === "fat") {
       logPayload.fat = normalizedValue;
+      logPayload.nutritionDetails = normaliseNutritionDetails({
+        ...(dashboard?.nutritionDetails ?? {}),
+        fat: normalizedValue,
+      });
     }
 
     await logsApi.saveDailyLog(logPayload, token);
@@ -1631,6 +1731,7 @@ export function DashboardShell() {
                       foodCalories={totalFoodCalories}
                       exerciseCalories={totalExerciseCalories}
                       loading={loading}
+                      onOpenDetails={() => setNutritionSummaryOpen(true)}
                       remaining={remainingCalories}
                       target={Math.round(caloriesMetric?.target ?? 0)}
                     />
@@ -1639,6 +1740,7 @@ export function DashboardShell() {
                       carbs={carbsMetric}
                       fat={fatMetric}
                       loading={loading}
+                      onOpenDetails={() => setNutritionSummaryOpen(true)}
                       protein={proteinMetric}
                     />
 
@@ -1776,6 +1878,14 @@ export function DashboardShell() {
                 setSelectedSourceMessage(newUserMsg);
                 setSelectedMessageContext(newUserMsg.message);
               }}
+            />
+          ) : null}
+
+          {nutritionSummaryOpen ? (
+            <DailyNutritionDetailsModal
+              date={selectedIsoDate}
+              details={dashboard?.nutritionDetails ?? null}
+              onClose={() => setNutritionSummaryOpen(false)}
             />
           ) : null}
         </div>
@@ -2093,6 +2203,7 @@ function CaloriesCard({
   exerciseCalories,
   foodCalories,
   loading,
+  onOpenDetails,
   remaining,
   target,
 }: {
@@ -2100,6 +2211,7 @@ function CaloriesCard({
   exerciseCalories: number;
   foodCalories: number;
   loading: boolean;
+  onOpenDetails: () => void;
   remaining: number;
   target: number;
 }) {
@@ -2123,12 +2235,14 @@ function CaloriesCard({
   }
 
   return (
-    <BaseCard className="animate-fade-up p-4">
+    <button type="button" onClick={onOpenDetails} className="block w-full text-left">
+    <BaseCard className="animate-fade-up p-4 transition-colors hover:bg-[#fcfcf9]">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
           <Flame/>
         </TinyIconCircle>
         <p className="text-[14px] font-semibold text-[#111111]">Calories</p>
+        <span className="ml-auto text-[12px] text-[#8a9198]">View details</span>
       </div>
 
       <div className="mt-5 grid min-w-0 gap-2 grid-cols-[auto_minmax(0,1fr)] sm:gap-5">
@@ -2153,6 +2267,7 @@ function CaloriesCard({
         </div>
       </div>
     </BaseCard>
+    </button>
   );
 }
 
@@ -2160,11 +2275,13 @@ function MacrosCard({
   carbs,
   fat,
   loading,
+  onOpenDetails,
   protein,
 }: {
   carbs: DashboardSummary["dailyGoals"]["metrics"][number] | null;
   fat: DashboardSummary["dailyGoals"]["metrics"][number] | null;
   loading: boolean;
+  onOpenDetails: () => void;
   protein: DashboardSummary["dailyGoals"]["metrics"][number] | null;
 }) {
   if (loading) {
@@ -2181,12 +2298,14 @@ function MacrosCard({
   }
 
   return (
-    <BaseCard className="animate-fade-up animation-delay-1 p-4">
+    <button type="button" onClick={onOpenDetails} className="block w-full text-left">
+    <BaseCard className="animate-fade-up animation-delay-1 p-4 transition-colors hover:bg-[#fcfcf9]">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
           <Target/>
         </TinyIconCircle>
         <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
+        <span className="ml-auto text-[12px] text-[#8a9198]">View details</span>
       </div>
 
       <div className="mt-5 grid min-w-0 grid-cols-3 gap-2 justify-items-center sm:gap-3 md:gap-4">
@@ -2195,6 +2314,7 @@ function MacrosCard({
         <MacroPill label="Fat" metric={fat} />
       </div>
     </BaseCard>
+    </button>
   );
 }
 
@@ -3479,7 +3599,7 @@ function MessageModalRouter({
   sourceMessage?: ChatMessage | null;
   selectedIsoDate?: string;
   onClose: () => void;
-  onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
+  onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number; nutritionDetails?: NutritionDetails | null }) => void;
   onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserMsg: ChatMessage) => void;
 }) {
   const parsed = parseNutritionFromText(message.message);
@@ -3533,7 +3653,7 @@ function NutritionModal({
   contextName?: string;
   parsed: ParsedNutritionData;
   onClose: () => void;
-  onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number }) => void;
+  onLogSave: (totals: { name: string; calories: number; protein: number; carbs: number; fat: number; exerciseMinutes: number; exerciseCalories: number; nutritionDetails?: NutritionDetails | null }) => void;
   onRefetchUpdate?: (newAssistantMsg: ChatMessage, newUserMsg: ChatMessage) => void;
 }) {
   const isLogged = !!loggedItem;
@@ -3836,7 +3956,8 @@ function NutritionModal({
                 carbs: crb, 
                 fat: fat, 
                 exerciseMinutes: exerciseMin, 
-                exerciseCalories: exerciseCal 
+                exerciseCalories: exerciseCal,
+                nutritionDetails: buildNutritionDetailsFromParsed(localParsed),
               });
               setTimeout(() => {
                 onClose();
@@ -3915,6 +4036,72 @@ function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onC
       </div>
     </div>
   );
+}
+
+function DailyNutritionDetailsModal({
+  date,
+  details,
+  onClose,
+}: {
+  date: string;
+  details?: NutritionDetails | null;
+  onClose: () => void;
+}) {
+  if (!details) {
+    return (
+      <div className="absolute inset-0 z-[80] flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
+        <div className="w-full max-w-md rounded-[24px] border border-[#ecece7] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <p className="text-[16px] font-semibold text-[#111111]">Daily Nutrition Details</p>
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee]"
+              onClick={onClose}
+              type="button"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <p className="text-[14px] text-[#6e757d]">No detailed nutrition data has been logged for {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const parsedLike: ParsedNutritionData = {
+    items: [],
+    totals: {
+      calories: details.calories,
+      protein: details.protein,
+      carbs: details.carbs,
+      fat: details.fat,
+      dietaryFibre: details.dietaryFibre,
+      starch: details.starch,
+      sugar: details.sugar,
+      addedSugars: details.addedSugars,
+      sugarAlcohols: details.sugarAlcohols,
+      otherCarbs: details.otherCarbs,
+      netCarbs: details.netCarbs,
+      saturatedFat: details.saturatedFat,
+      transFat: details.transFat,
+      polyunsaturatedFat: details.polyunsaturatedFat,
+      monounsaturatedFat: details.monounsaturatedFat,
+      otherFat: details.otherFat,
+      cholesterol: details.cholesterol,
+      sodium: details.sodium,
+      calcium: details.calcium,
+      iron: details.iron,
+      potassium: details.potassium,
+      vitaminA: details.vitaminA,
+      vitaminC: details.vitaminC,
+      vitaminD: details.vitaminD,
+      exerciseMinutes: 0,
+      exerciseCalories: 0,
+    },
+    originalText: "",
+    dishName: `Nutrition details for ${new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+  };
+
+  return <DishDetailModal parsed={parsedLike} onClose={onClose} />;
 }
 
 function DownloadIcon() {

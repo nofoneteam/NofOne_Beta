@@ -16,7 +16,7 @@ const MIN_MEANINGFUL_LENGTH = 4;
 const QUANTITY_UNIT_PATTERN =
   /\b\d+(?:\.\d+)?\s*(?:g|gm|grams?|kg|kgs|ml|l|litre|litres|liter|liters|cup|cups|tbsp|tsp|teaspoon|teaspoons|tablespoon|tablespoons|slice|slices|piece|pieces|roti|rotis|chapati|chapatis|egg|eggs|glass|glasses|bowl|bowls|plate|plates|serving|servings|min|mins|minute|minutes|hr|hrs|hour|hours|km|kilometer|kilometers|mile|miles|steps?)\b/i;
 const FOOD_ITEM_PATTERN =
-  /\b(dal|makhni|roti|chapati|paratha|tandoori|dosa|idli|uttapam|chole|paneer|rajma|sabzi|poha|upma|khichdi|biryani|chicken|fish|egg|eggs|meat|vegetable|vegetables|fruit|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|orange|smoothie|shake|sandwich)\b/i;
+  /\b(dal|makhni|roti|chapati|paratha|tandoori|dosa|idli|uttapam|chole|paneer|rajma|sabzi|poha|upma|khichdi|biryani|chicken|fish|egg|eggs|meat|soyabean|soybean|soya|tofu|lentils?|beans?|chickpeas?|vegetable|vegetables|fruit|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|orange|smoothie|shake|sandwich|almonds?|peanuts?|walnuts?)\b/i;
 const EXERCISE_ITEM_PATTERN =
   /\b(exercise|workout|training|gym|cardio|walk|walked|walking|run|ran|running|jog|jogged|jogging|cycle|cycled|cycling|swim|swimming|yoga|stretching|tennis|badminton|football|cricket|lifted|lifting|steps?)\b/i;
 
@@ -47,6 +47,19 @@ function messageLooksLikeQuantifiedHealthLog(message = "") {
   );
 }
 
+function messageLooksLikeGeneralNutritionQuery(message = "") {
+  const normalized = normalizeMessage(message);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    FOOD_ITEM_PATTERN.test(normalized) ||
+    /\b(how many|how much|nutrition|nutritional|nutrients?|macros?|calories?|protein|carbs?|fat|fats|fiber|fibre|sugar|sodium|cholesterol|vitamin|minerals?)\b/i.test(normalized)
+  );
+}
+
 function messageLooksLikeStandaloneFoodName(message = "") {
   const normalized = normalizeMessage(message);
 
@@ -57,6 +70,7 @@ function messageLooksLikeStandaloneFoodName(message = "") {
   if (
     messageLooksLikeMealLog(normalized) ||
     messageLooksLikeQuantifiedHealthLog(normalized) ||
+    messageLooksLikeGeneralNutritionQuery(normalized) ||
     messageMentionsHealthTopic(normalized) ||
     messageIsAllowedGeneralConversation(normalized) ||
     ABUSIVE_PATTERN.test(normalized)
@@ -109,6 +123,7 @@ function isLikelyNonsense(message = "") {
     messageIsAllowedGeneralConversation(normalized) ||
     messageLooksLikeMealLog(normalized) ||
     messageLooksLikeQuantifiedHealthLog(normalized) ||
+    messageLooksLikeGeneralNutritionQuery(normalized) ||
     messageMentionsHealthTopic(normalized) ||
     messageLooksLikeStandaloneFoodName(normalized)
   ) {
@@ -150,6 +165,7 @@ function isHealthDomainRequest(payload, previousMessages = []) {
       messageMentionsHealthTopic(payload.message) ||
       messageLooksLikeMealLog(payload.message) ||
       messageLooksLikeQuantifiedHealthLog(payload.message) ||
+      messageLooksLikeGeneralNutritionQuery(payload.message) ||
       messageLooksLikeStandaloneFoodName(payload.message) ||
       messageIsAllowedGeneralConversation(payload.message)
     );
@@ -159,6 +175,7 @@ function isHealthDomainRequest(payload, previousMessages = []) {
     messageMentionsHealthTopic(payload.message) ||
     messageLooksLikeMealLog(payload.message) ||
     messageLooksLikeQuantifiedHealthLog(payload.message) ||
+    messageLooksLikeGeneralNutritionQuery(payload.message) ||
     messageLooksLikeStandaloneFoodName(payload.message) ||
     messageIsAllowedGeneralConversation(payload.message)
   ) {

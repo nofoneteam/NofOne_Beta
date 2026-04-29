@@ -121,6 +121,53 @@ function round(value, precision = 1) {
   return Number(value.toFixed(precision));
 }
 
+function normaliseNutritionDetails(details = null) {
+  if (!details || typeof details !== "object") {
+    return null;
+  }
+
+  const fields = [
+    "calories",
+    "protein",
+    "carbs",
+    "fat",
+    "dietaryFibre",
+    "starch",
+    "sugar",
+    "addedSugars",
+    "sugarAlcohols",
+    "otherCarbs",
+    "netCarbs",
+    "saturatedFat",
+    "transFat",
+    "polyunsaturatedFat",
+    "monounsaturatedFat",
+    "otherFat",
+    "cholesterol",
+    "sodium",
+    "calcium",
+    "iron",
+    "potassium",
+    "vitaminA",
+    "vitaminC",
+    "vitaminD",
+  ];
+
+  const normalized = {};
+
+  for (const field of fields) {
+    const value = details[field];
+
+    if (value == null || value === "") {
+      continue;
+    }
+
+    normalized[field] = round(Number(value) || 0, 2);
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
 function normalizeGoal(goal) {
   if (goal === "lose_weight") {
     return "loss";
@@ -416,6 +463,7 @@ function buildDetailedDailyEntries(logs, goals) {
       exerciseCalories: round(Number(log.exerciseCalories) || 0, 0),
       weight: log.weight != null ? round(Number(log.weight), 1) : null,
     },
+    nutritionDetails: normaliseNutritionDetails(log.nutritionDetails),
   }));
 }
 
@@ -495,6 +543,7 @@ async function getDashboardSummary(userId, date) {
   return {
     date: toIsoDate(date || new Date()),
     dailyGoals: buildDailyGoals(currentLog, goals),
+    nutritionDetails: normaliseNutritionDetails(currentLog?.nutritionDetails),
     weightTracker: buildWeightTracker(weeklyLogs, profile || {}),
     weeklySummary: buildWeeklySummary(weeklyLogs, goals),
   };

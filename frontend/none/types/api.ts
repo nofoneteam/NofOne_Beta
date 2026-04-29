@@ -11,6 +11,7 @@ import type {
   HealthProfile,
   HealthProfileWithUser,
   MedicalReport,
+  NutritionDetails,
   OtpRequestResult,
   ProfileAiSuggestion,
   SharedProgressReport,
@@ -118,6 +119,7 @@ export interface UpsertDailyLogPayload {
   sleepHours?: number;
   exerciseMinutes?: number;
   exerciseCalories?: number;
+  nutritionDetails?: NutritionDetails | null;
   weight?: number | null;
 }
 
