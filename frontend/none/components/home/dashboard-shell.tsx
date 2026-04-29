@@ -7,23 +7,31 @@ import { usePathname, useRouter } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 import {
   Bell,
+  Camera,
   ChartColumn,
+  ChevronDown,
+  DropletIcon,
+  EllipsisVertical,
+  Eye,
   Flag,
   House,
   LogOut,
+  Menu,
   Mic,
   MessageSquareText,
+  PencilLine,
   Scale,
+  Send,
   Settings,
+  Share2,
   Shield,
   UserRound,
   Users,
   Target,
-  GlassWaterIcon,
-  DropletIcon,
   Flame,
   Loader2,
   Download,
+  X,
 } from "lucide-react";
 
 import { DailyGoalsSection } from "@/components/home/daily-goals-section";
@@ -1560,7 +1568,7 @@ export function DashboardShell() {
                     onClick={() => setSidebarOpen(true)}
                     type="button"
                   >
-                    <MenuIcon />
+                    <Menu className="h-4 w-4" />
                   </button>
 
                   <div className="justify-self-center text-center">
@@ -1574,7 +1582,7 @@ export function DashboardShell() {
                         {selectedIsoDate === getIsoDate(new Date())
                           ? "Today"
                           : selectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        <ChevronDownIcon />
+                        <ChevronDown className="h-3 w-3" />
                       </button>
 
                       {calendarOpen ? (
@@ -1612,7 +1620,7 @@ export function DashboardShell() {
                     onClick={() => router.push(HOME_SECTION_ROUTES.profile)}
                     type="button"
                   >
-                    <UserIcon />
+                    <UserRound className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
@@ -1622,7 +1630,7 @@ export function DashboardShell() {
                     onClick={() => setSidebarOpen(true)}
                     type="button"
                   >
-                    <MenuIcon />
+                    <Menu className="h-4 w-4" />
                   </button>
 
                   <div className="text-center">
@@ -1652,7 +1660,7 @@ export function DashboardShell() {
                     onClick={() => router.push(HOME_SECTION_ROUTES.profile)}
                     type="button"
                   >
-                    <UserIcon />
+                    <UserRound className="h-4 w-4" />
                   </button>
                 </div>
               )}
@@ -1798,6 +1806,29 @@ export function DashboardShell() {
                       protein={proteinMetric}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-2 xl:gap-3">
+      <DesktopSummaryCard
+        calories={Math.round(caloriesMetric?.current ?? 0)}
+        completion={effectiveDashboard?.dailyGoals?.completionPercent ?? 0}
+        loading={loading}
+        target={Math.round(caloriesMetric?.target ?? 0)}
+        water={currentWater}
+      />
+
+      <WaterCard
+        current={currentWater}
+        loading={loading}
+        saving={savingWater}
+        target={targetWater}
+        onDecrement={() => handleWaterUpdate(-1)}
+        onIncrement={() => handleWaterUpdate(1)}
+      />
+    </div>
+                  
+                  
+                  
+
+                  
 
                   <LoggedEntriesSection
                     entries={loggedDashboardEntries}
@@ -1885,7 +1916,7 @@ export function DashboardShell() {
                     onClick={() => setChatHistoryModalOpen(false)}
                     type="button"
                   >
-                    <CloseIcon />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto w-full bg-[#fcfcf9] p-4">
@@ -2006,7 +2037,7 @@ function SidebarPanel({
           onClick={onClose}
           type="button"
         >
-          <CloseIcon />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -2488,14 +2519,14 @@ function LoggedEntriesSection({
                   onClick={() => onEdit(entry)}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-[#ecece7] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
                 >
-                  <EditIcon />
+                  <PencilLine className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenMenu(assistantMessage.id)}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-[#ecece7] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
                 >
-                  <MoreIcon />
+                  <EllipsisVertical className="h-4 w-4" />
                 </button>
                 {openMenuId === assistantMessage.id ? (
                   <>
@@ -2506,7 +2537,7 @@ function LoggedEntriesSection({
                         onClick={() => onViewAnalytics(entry)}
                         className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[13px] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
                       >
-                        <EyeSmallIcon />
+                        <Eye className="h-[13px] w-[13px]" />
                         View detailed analytics
                       </button>
                     </div>
@@ -2693,7 +2724,7 @@ function ReportCard({
             onClick={onView}
             type="button"
           >
-            <EyeSmallIcon />
+            <Eye className="h-[13px] w-[13px]" />
             View
           </button>
           <button
@@ -2701,7 +2732,7 @@ function ReportCard({
             onClick={onShare}
             type="button"
           >
-            <ShareSmallIcon />
+            <Share2 className="h-[13px] w-[13px]" />
             {sharing ? "Sharing..." : "Share"}
           </button>
         </div>
@@ -2903,7 +2934,7 @@ function QuickInputCard({
               onClick={onImageRemove}
               type="button"
             >
-              <CloseIcon />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ) : null}
@@ -2951,7 +2982,7 @@ function QuickInputCard({
               onClick={() => setIsImagePickerOpen((current) => !current)}
               type="button"
             >
-              <CameraIcon />
+              <Camera className="h-4 w-4" />
             </button>
 
             {isImagePickerOpen ? (
@@ -2983,7 +3014,7 @@ function QuickInputCard({
             disabled={chatting || (!chatInput.trim() && !chatImagePreview)}
             type="submit"
           >
-            <SendIcon />
+            <Send className="h-4 w-4" />
           </button>
         </div>
       </form>
@@ -3277,7 +3308,7 @@ function ReportModal({
             onClick={onClose}
             type="button"
           >
-            <CloseIcon />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -3599,113 +3630,6 @@ function ShimmerBlock({ className }: { className?: string }) {
   return <div className={cn("rounded-[18px] bg-[#f3f3ee] shimmer", className)} />;
 }
 
-function MenuIcon() {
-  return (
-    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
-      <path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
-      <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon() {
-  return (
-    <svg className="h-[12px] w-[12px]" fill="none" viewBox="0 0 24 24">
-      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg className="h-[14px] w-[14px]" fill="none" viewBox="0 0 24 24">
-      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 1 1 14 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function FlameIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-      <path d="M12.5 3c.6 2.3 3.5 3.5 3.5 7a4 4 0 1 1-8 0c0-1.8.8-3.1 1.9-4.4.4 1.5 1.3 2.6 2.6 3.2.3-1.3.2-2.7 0-5.8Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function TargetIcon({ className }: { className?: string }) {
-  return (
-    <svg className={cn("h-2.75 w-2.75", className)} fill="none" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function WaterIcon() {
-  return (
-    <svg className="h-2.75 w-2.75" fill="none" viewBox="0 0 24 24">
-      <path d="M12 3c2.5 3.2 5.5 6.7 5.5 10A5.5 5.5 0 0 1 6.5 13C6.5 9.7 9.5 6.2 12 3Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function EyeSmallIcon() {
-  return (
-    <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24">
-      <path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Zm9.5 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function ShareSmallIcon() {
-  return (
-    <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24">
-      <path d="M15 8 9 12l6 4M18 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM6 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm12 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
-      <path d="m21 3-9.5 9.5M21 3l-6 18-3.5-8.5L3 9l18-6Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
-      <path d="M4 8h3l1.4-2h3.2L13 8h7v11H4V8Zm8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function EditIcon() {
-  return (
-    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
-      <path d="m4 20 4.5-1 9-9a1.8 1.8 0 0 0-2.5-2.5l-9 9L4 20Zm0 0h4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function MoreIcon() {
-  return (
-    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
-      <circle cx="12" cy="5" r="1.8" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-      <circle cx="12" cy="19" r="1.8" fill="currentColor" />
-    </svg>
-  );
-}
-
 // ----------------------------------------------------------------------------
 // Custom UI Chat Components
 // ----------------------------------------------------------------------------
@@ -3834,7 +3758,7 @@ function ChatHistoryPanel({
                     )}
                     <div className="px-4 py-3 flex items-center justify-between gap-3 bg-[#edf5ee]">
                        <div className="flex items-center gap-2 font-medium text-[#2c3d30] text-[13px]">
-                         <TargetIcon className="w-4 h-4 shrink-0" />
+                         <Target className="h-4 w-4 shrink-0" />
                          <span>Nutrition Data ({group.parsed.totals.calories} kcal)</span>
                        </div>
                        {isLogged ? (
@@ -3892,7 +3816,7 @@ function PlainMessageModal({ text, onClose }: { text: string; onClose: () => voi
             onClick={onClose}
             type="button"
           >
-            <CloseIcon />
+            <X className="h-4 w-4" />
           </button>
         </div>
         <div className="rounded-[16px] bg-[#f7f7f3] px-4 py-3 text-[#111111]">
@@ -4045,7 +3969,7 @@ function NutritionModal({
             onClick={onClose}
             type="button"
           >
-            <CloseIcon />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -4359,7 +4283,7 @@ function DailyNutritionDetailsModal({
               onClick={onClose}
               type="button"
             >
-              <CloseIcon />
+              <X className="h-4 w-4" />
             </button>
           </div>
           <p className="text-[14px] text-[#6e757d]">No detailed nutrition data has been logged for {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} yet.</p>
@@ -4411,7 +4335,7 @@ function DailyNutritionDetailsModal({
             <p className="mt-1 text-[12px] text-[#8a9198]">{new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee]" type="button">
-            <CloseIcon />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
