@@ -38,6 +38,7 @@ export interface ParsedNutritionData {
         exerciseCalories: number;
     };
     originalText: string;
+    analysisText?: string;
     dishName?: string;
 }
 
@@ -170,6 +171,40 @@ function parseStructuredNutritionValues(text: string): Partial<NutritionTotals> 
     }
 
     return parsed;
+}
+
+function isStructuredNutritionLine(rawLine: string): boolean {
+    const line = rawLine
+        .trim()
+        .replace(/^[-*]\s*/, "")
+        .replace(/^\d+\.\s*/, "")
+        .replace(/\*\*/g, "")
+        .trim();
+
+    if (!line || !line.includes(":")) {
+        return false;
+    }
+
+    const separatorIndex = line.indexOf(":");
+    const label = line.slice(0, separatorIndex).trim();
+
+    return (
+        /^dish name$/i.test(label) ||
+        STRUCTURED_NUTRIENT_LABELS.some((definition) =>
+            definition.patterns.some((pattern) => pattern.test(label))
+        )
+    );
+}
+
+function extractAnalysisText(text: string): string | undefined {
+    const lines = text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const freeformLines = lines.filter((line) => !isStructuredNutritionLine(line));
+    const freeformText = freeformLines.join("\n").trim();
+
+    return freeformText || undefined;
 }
 
 function pickNumericValue<T extends number | undefined>(...values: T[]): number | undefined {
@@ -379,6 +414,7 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
             exerciseCalories: exerciseCalories,
         }),
         originalText: text,
+        analysisText: extractAnalysisText(currentTurnText),
         dishName,
     };
 }

@@ -71,6 +71,13 @@ export interface LoggedNutritionItem {
   nutritionDetails?: NutritionDetails | null;
 }
 
+type LoggedDashboardEntry = {
+  assistantMessage: ChatMessage;
+  sourceMessage: ChatMessage | null;
+  parsed: ParsedNutritionData;
+  loggedItem: LoggedNutritionItem;
+};
+
 type QueryKind = "text" | "image";
 
 type SidebarItem = {
@@ -344,6 +351,17 @@ function buildNutritionDetailsFromParsed(parsed: ParsedNutritionData): Nutrition
   };
 }
 
+function formatLoggedTime(timestamp?: string) {
+  if (!timestamp) {
+    return "";
+  }
+
+  return new Date(timestamp).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function sumNutritionDetails(
   base?: Partial<NutritionDetails> | null,
   delta?: Partial<NutritionDetails> | null,
@@ -511,6 +529,11 @@ export function DashboardShell() {
   const [selectedMessageContext, setSelectedMessageContext] = useState<string | undefined>(undefined);
   const [loggedNutritionItems, setLoggedNutritionItems] = useState<Record<string, LoggedNutritionItem>>({});
   const [nutritionSummaryOpen, setNutritionSummaryOpen] = useState(false);
+  const [openLoggedEntryMenuId, setOpenLoggedEntryMenuId] = useState<string | null>(null);
+  const [analyticsTarget, setAnalyticsTarget] = useState<{
+    message: ChatMessage;
+    sourceMessage: ChatMessage | null;
+  } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const { toast } = useToast();
   const activeSection = useMemo(() => getHomeSectionFromPath(pathname), [pathname]);
@@ -788,6 +811,37 @@ export function DashboardShell() {
   const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
   const remainingCalories = Math.round((caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories);
+  const loggedDashboardEntries = useMemo<LoggedDashboardEntry[]>(() => {
+    const entries: LoggedDashboardEntry[] = [];
+
+    for (let index = 0; index < chatHistory.length; index += 1) {
+      const message = chatHistory[index];
+      const loggedItem = loggedNutritionItems[message.id];
+
+      if (!loggedItem || message.role !== "assistant") {
+        continue;
+      }
+
+      const parsed = parseNutritionFromText(message.message);
+
+      if (!parsed) {
+        continue;
+      }
+
+      const previousMessage = index > 0 && chatHistory[index - 1]?.role === "user"
+        ? chatHistory[index - 1]
+        : null;
+
+      entries.push({
+        assistantMessage: message,
+        sourceMessage: previousMessage,
+        parsed,
+        loggedItem,
+      });
+    }
+
+    return entries.reverse();
+  }, [chatHistory, loggedNutritionItems]);
 
   async function handleLogout() {
     const token = getStoredAccessToken();
@@ -1724,8 +1778,8 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "home" ? (
-                <div className="mt-5 grid min-w-0 gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
-                  <div className="min-w-0 space-y-4">
+                <div className="mt-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <CaloriesCard
                       current={Math.round(caloriesMetric?.current ?? 0)}
                       foodCalories={totalFoodCalories}
@@ -1743,36 +1797,42 @@ export function DashboardShell() {
                       onOpenDetails={() => setNutritionSummaryOpen(true)}
                       protein={proteinMetric}
                     />
-
-                    <div className="grid min-w-0 gap-2 grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:gap-3">
-                      <DesktopSummaryCard
-                        calories={Math.round(caloriesMetric?.current ?? 0)}
-                        completion={effectiveDashboard?.dailyGoals.completionPercent ?? 0}
-                        loading={loading}
-                        target={Math.round(caloriesMetric?.target ?? 0)}
-                        water={currentWater}
-                      />
-                      <WaterCard
-                        current={currentWater}
-                        loading={loading}
-                        saving={savingWater}
-                        target={targetWater}
-                        onDecrement={() => void handleWaterUpdate(-1)}
-                        onIncrement={() => void handleWaterUpdate(1)}
-                      />
-                    </div>
                   </div>
 
-                  <div className="min-w-0 space-y-4">
-                    <button
-                      type="button"
-                      onClick={() => setChatHistoryModalOpen(true)}
-                      className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-[#f7f7f3] text-[14px] font-semibold text-[#111111] transition-colors hover:bg-[#efefe9]"
-                    >
-                      <MessageSquareText className="h-5 w-5 text-green-600" />
-                      See previous messages
-                    </button>
-                  </div>
+                  <LoggedEntriesSection
+                    entries={loggedDashboardEntries}
+                    calorieTarget={Math.round(caloriesMetric?.target ?? 0)}
+                    carbsTarget={Math.round(carbsMetric?.target ?? 0)}
+                    proteinTarget={Math.round(proteinMetric?.target ?? 0)}
+                    fatTarget={Math.round(fatMetric?.target ?? 0)}
+                    openMenuId={openLoggedEntryMenuId}
+                    onCloseMenu={() => setOpenLoggedEntryMenuId(null)}
+                    onEdit={(entry) => {
+                      setOpenLoggedEntryMenuId(null);
+                      setSelectedSourceMessage(entry.sourceMessage);
+                      setSelectedMessageContext(entry.sourceMessage?.message || entry.loggedItem.name);
+                      setSelectedMessage(entry.assistantMessage);
+                    }}
+                    onOpenMenu={(messageId) => {
+                      setOpenLoggedEntryMenuId((current) => current === messageId ? null : messageId);
+                    }}
+                    onViewAnalytics={(entry) => {
+                      setOpenLoggedEntryMenuId(null);
+                      setAnalyticsTarget({
+                        message: entry.assistantMessage,
+                        sourceMessage: entry.sourceMessage,
+                      });
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setChatHistoryModalOpen(true)}
+                    className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-[#f7f7f3] text-[14px] font-semibold text-[#111111] transition-colors hover:bg-[#efefe9]"
+                  >
+                    <MessageSquareText className="h-5 w-5 text-green-600" />
+                    See previous messages
+                  </button>
                 </div>
               ) : null}
               </div>
@@ -1885,7 +1945,21 @@ export function DashboardShell() {
             <DailyNutritionDetailsModal
               date={selectedIsoDate}
               details={dashboard?.nutritionDetails ?? null}
+              caloriesMetric={caloriesMetric}
+              carbsMetric={carbsMetric}
+              proteinMetric={proteinMetric}
+              fatMetric={fatMetric}
+              foodCalories={totalFoodCalories}
+              exerciseCalories={totalExerciseCalories}
+              remainingCalories={remainingCalories}
               onClose={() => setNutritionSummaryOpen(false)}
+            />
+          ) : null}
+
+          {analyticsTarget ? (
+            <LoggedAnalyticsModal
+              message={analyticsTarget.message}
+              onClose={() => setAnalyticsTarget(null)}
             />
           ) : null}
         </div>
@@ -2215,20 +2289,14 @@ function CaloriesCard({
   remaining: number;
   target: number;
 }) {
-  const progress = Math.min(current / Math.max(target, 1), 1);
-  const progressDegrees = progress * 360;
-
   if (loading) {
     return (
       <BaseCard className="p-4">
         <ShimmerLine className="h-4 w-24" />
-        <div className="mt-5 grid grid-cols-[86px_1fr] items-center gap-5">
-          <div className="h-21.5 w-21.5 rounded-full bg-[#f3f3ee] shimmer" />
-          <div className="grid grid-cols-3 gap-4">
-            <ShimmerBlock className="h-16" />
-            <ShimmerBlock className="h-16" />
-            <ShimmerBlock className="h-16" />
-          </div>
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <ShimmerBlock className="h-14" />
+          <ShimmerBlock className="h-14" />
+          <ShimmerBlock className="h-14" />
         </div>
       </BaseCard>
     );
@@ -2236,35 +2304,18 @@ function CaloriesCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left">
-    <BaseCard className="animate-fade-up p-4 transition-colors hover:bg-[#fcfcf9]">
+    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] p-4 transition-colors hover:bg-[#e8effd]">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
           <Flame/>
         </TinyIconCircle>
         <p className="text-[14px] font-semibold text-[#111111]">Calories</p>
-        <span className="ml-auto text-[12px] text-[#8a9198]">View details</span>
       </div>
 
-      <div className="mt-5 grid min-w-0 gap-2 grid-cols-[auto_minmax(0,1fr)] sm:gap-5">
-        <div
-          className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full sm:h-21.5 sm:w-21.5"
-          style={{
-  background: `conic-gradient(#166534 ${progressDegrees}deg, #f2efe8 0deg)`,
-}}
-        >
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white sm:h-18.5 sm:w-18.5">
-            <div className="text-center leading-none">
-              <p className="text-[16px] font-semibold text-[#111111] sm:text-[20px]">{remaining}</p>
-              <p className="mt-0.5 text-[9px] text-[#a0a4aa] sm:mt-1 sm:text-[10px]">remaining</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid min-w-0 grid-cols-3 gap-1.5 sm:gap-2 md:gap-4">
-          <SmallStat label="Food" value={foodCalories} />
-          <SmallStat label="Exercise" value={exerciseCalories} />
-          <SmallStat accent valueColor="text-green-800" label="Goal" value={target} />
-        </div>
+      <div className="mt-5 grid min-w-0 grid-cols-3 gap-2">
+        <DashboardMiniStat label="Food" value={foodCalories} />
+        <DashboardMiniStat label="Exercise" value={exerciseCalories} />
+        <DashboardMiniStat highlight label="Remaining" value={remaining} />
       </div>
     </BaseCard>
     </button>
@@ -2288,10 +2339,10 @@ function MacrosCard({
     return (
       <BaseCard className="p-2">
         <ShimmerLine className="h-4 w-20" />
-        <div className="mt-5 grid grid-cols-3 gap-4">
-          <ShimmerBlock className="h-25" />
-          <ShimmerBlock className="h-25" />
-          <ShimmerBlock className="h-25" />
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <ShimmerBlock className="h-14" />
+          <ShimmerBlock className="h-14" />
+          <ShimmerBlock className="h-14" />
         </div>
       </BaseCard>
     );
@@ -2299,22 +2350,223 @@ function MacrosCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left">
-    <BaseCard className="animate-fade-up animation-delay-1 p-4 transition-colors hover:bg-[#fcfcf9]">
+    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] p-4 transition-colors hover:bg-[#e8effd]">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
           <Target/>
         </TinyIconCircle>
         <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
-        <span className="ml-auto text-[12px] text-[#8a9198]">View details</span>
       </div>
 
-      <div className="mt-5 grid min-w-0 grid-cols-3 gap-2 justify-items-center sm:gap-3 md:gap-4">
-        <MacroPill label="Carbs" metric={carbs} />
-        <MacroPill label="Protein" metric={protein} />
-        <MacroPill label="Fat" metric={fat} />
+      <div className="mt-5 grid min-w-0 grid-cols-3 gap-2">
+        <DashboardRatioStat label="Carbs (g)" metric={carbs} />
+        <DashboardRatioStat label="Protein (g)" metric={protein} />
+        <DashboardRatioStat label="Fat (g)" metric={fat} />
       </div>
     </BaseCard>
     </button>
+  );
+}
+
+function DashboardMiniStat({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="rounded-[16px] bg-white/70 px-3 py-3">
+      <p className={cn("text-[11px] text-[#667085]", highlight && "text-[#111111]")}>{label}</p>
+      <p className={cn("mt-1 text-[16px] font-semibold text-[#111111]", highlight && "text-[18px]")}>{value}</p>
+    </div>
+  );
+}
+
+function DashboardRatioStat({
+  label,
+  metric,
+}: {
+  label: string;
+  metric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
+}) {
+  return (
+    <div className="rounded-[16px] bg-white/70 px-3 py-3">
+      <p className="text-[16px] font-semibold text-[#111111]">
+        {Math.round(metric?.current ?? 0)}/{Math.round(metric?.target ?? 0)}
+      </p>
+      <p className="mt-1 text-[11px] text-[#667085]">{label}</p>
+    </div>
+  );
+}
+
+function CircularMetric({
+  accent,
+  current,
+  label,
+  target,
+}: {
+  accent: string;
+  current: number;
+  label: string;
+  target: number;
+}) {
+  const progress = Math.min(current / Math.max(target, 1), 1);
+  const progressDegrees = progress * 360;
+
+  return (
+    <div className="text-center">
+      <div
+        className="mx-auto flex h-20 w-20 items-center justify-center rounded-full"
+        style={{
+          background: `conic-gradient(${accent} ${progressDegrees}deg, #e7edf7 0deg)`,
+        }}
+      >
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white">
+          <div className="text-center leading-none">
+            <p className="text-[14px] font-semibold text-[#111111]">{current}</p>
+            <p className="mt-1 text-[9px] text-[#8a9198]">/{target}</p>
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] font-medium text-[#6b7280]">{label}</p>
+    </div>
+  );
+}
+
+function LoggedEntriesSection({
+  calorieTarget,
+  carbsTarget,
+  entries,
+  fatTarget,
+  openMenuId,
+  onCloseMenu,
+  onEdit,
+  onOpenMenu,
+  proteinTarget,
+  onViewAnalytics,
+}: {
+  calorieTarget: number;
+  carbsTarget: number;
+  entries: LoggedDashboardEntry[];
+  fatTarget: number;
+  openMenuId: string | null;
+  onCloseMenu: () => void;
+  onEdit: (entry: LoggedDashboardEntry) => void;
+  onOpenMenu: (messageId: string) => void;
+  proteinTarget: number;
+  onViewAnalytics: (entry: LoggedDashboardEntry) => void;
+}) {
+  if (!entries.length) {
+    return (
+      <BaseCard className="p-4">
+        <p className="text-[15px] font-semibold text-[#111111]">Logged dishes & exercises</p>
+        <p className="mt-2 text-[13px] text-[#8a9198]">Log a dish or exercise from chat to see it here.</p>
+      </BaseCard>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="px-1 text-[13px] font-semibold uppercase tracking-wide text-[#8a9198]">Logged dishes & exercises</p>
+      {entries.map((entry) => {
+        const { parsed, assistantMessage, sourceMessage, loggedItem } = entry;
+        const title = loggedItem.name || parsed.dishName || sourceMessage?.message || "Logged item";
+
+        return (
+          <BaseCard key={assistantMessage.id} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[13px] text-[#8a9198] line-clamp-1">{sourceMessage?.message || parsed.analysisText || "Logged from chat"}</p>
+                <p className="mt-2 text-[16px] font-semibold text-[#111111]">{title}</p>
+              </div>
+              <div className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onEdit(entry)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[#ecece7] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
+                >
+                  <EditIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenMenu(assistantMessage.id)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[#ecece7] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
+                >
+                  <MoreIcon />
+                </button>
+                {openMenuId === assistantMessage.id ? (
+                  <>
+                    <button type="button" aria-label="Close menu" className="fixed inset-0 z-40" onClick={onCloseMenu} />
+                    <div className="absolute right-0 top-11 z-50 min-w-[180px] rounded-[16px] border border-[#ecece7] bg-white p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
+                      <button
+                        type="button"
+                        onClick={() => onViewAnalytics(entry)}
+                        className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[13px] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
+                      >
+                        <EyeSmallIcon />
+                        View detailed analytics
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <LogNutrientChip label="Calories" value={`${loggedItem.calories}`} />
+              <LogNutrientChip label="Carbs" value={`${loggedItem.carbs}g`} />
+              <LogNutrientChip label="Protein" value={`${loggedItem.protein}g`} />
+              <LogNutrientChip label="Fat" value={`${loggedItem.fat}g`} />
+            </div>
+
+            <div className="mt-4 grid grid-cols-4 gap-3">
+              <LogProgressStat label="Calories" current={loggedItem.calories} target={Math.max(calorieTarget, 1)} unit="" />
+              <LogProgressStat label="Carbs" current={loggedItem.carbs} target={Math.max(carbsTarget, 1)} unit="g" />
+              <LogProgressStat label="Protein" current={loggedItem.protein} target={Math.max(proteinTarget, 1)} unit="g" />
+              <LogProgressStat label="Fat" current={loggedItem.fat} target={Math.max(fatTarget, 1)} unit="g" />
+            </div>
+
+            <div className="mt-4 text-[12px] text-[#6b7280]">{formatLoggedTime(sourceMessage?.timestamp || assistantMessage.timestamp)}</div>
+          </BaseCard>
+        );
+      })}
+    </div>
+  );
+}
+
+function LogNutrientChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="rounded-[10px] bg-[#f4f6fb] px-2.5 py-1 text-[12px] text-[#334155]">
+      {label}: {value}
+    </span>
+  );
+}
+
+function LogProgressStat({
+  current,
+  label,
+  target,
+  unit,
+}: {
+  current: number;
+  label: string;
+  target: number;
+  unit: string;
+}) {
+  const percent = Math.min(Math.round((current / Math.max(target, 1)) * 100), 100);
+
+  return (
+    <div>
+      <p className="text-[12px] text-[#6b7280]">{label}</p>
+      <p className="mt-1 text-[16px] font-semibold text-[#111111]">{current}{unit}</p>
+      <div className="mt-2 h-2 rounded-full bg-[#e7edf7]">
+        <div className="h-full rounded-full bg-[#9ebae6]" style={{ width: `${percent}%` }} />
+      </div>
+      <p className="mt-1 text-[11px] text-[#6b7280]">{percent}%</p>
+    </div>
   );
 }
 
@@ -3436,6 +3688,24 @@ function CameraIcon() {
   );
 }
 
+function EditIcon() {
+  return (
+    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
+      <path d="m4 20 4.5-1 9-9a1.8 1.8 0 0 0-2.5-2.5l-9 9L4 20Zm0 0h4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg className="h-[16px] w-[16px]" fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 // ----------------------------------------------------------------------------
 // Custom UI Chat Components
 // ----------------------------------------------------------------------------
@@ -3993,8 +4263,50 @@ function DetailRow({ label, value, unit, indent = false }: { label: string, valu
   );
 }
 
-function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onClose: () => void }) {
+function DishDetailModalBody({ parsed }: { parsed: ParsedNutritionData }) {
   const t = parsed.totals;
+
+  return (
+    <div className="w-full px-4 pb-8">
+      <DetailRow label="Total Carbohydrates" value={t.carbs} unit="g" />
+      <DetailRow label="Dietary Fibre" value={t.dietaryFibre} unit="g" indent />
+      <DetailRow label="Starch" value={t.starch} unit="g" indent />
+      <DetailRow label="Sugar" value={t.sugar} unit="g" indent />
+      <DetailRow label="Added Sugars" value={t.addedSugars} unit="g" indent />
+      <DetailRow label="Sugar Alcohols" value={t.sugarAlcohols} unit="g" indent />
+      <DetailRow label="Other Carbs" value={t.otherCarbs} unit="g" indent />
+      <DetailRow label="Net Carbs" value={t.netCarbs} unit="g" indent />
+
+      <DetailRow label="Protein" value={t.protein} unit="g" />
+
+      <DetailRow label="Total Fat" value={t.fat} unit="g" />
+      <DetailRow label="Saturated Fat" value={t.saturatedFat} unit="g" indent />
+      <DetailRow label="Trans Fat" value={t.transFat} unit="g" indent />
+      <DetailRow label="Polyunsaturated Fat" value={t.polyunsaturatedFat} unit="g" indent />
+      <DetailRow label="Monounsaturated Fat" value={t.monounsaturatedFat} unit="g" indent />
+      <DetailRow label="Other Fat" value={t.otherFat} unit="g" indent />
+
+      <DetailRow label="Cholesterol" value={t.cholesterol} unit="mg" />
+      <DetailRow label="Sodium" value={t.sodium} unit="mg" />
+      <DetailRow label="Calcium" value={t.calcium} unit="mg" />
+      <DetailRow label="Iron" value={t.iron} unit="mg" />
+      <DetailRow label="Potassium" value={t.potassium} unit="mg" />
+      <DetailRow label="Vitamin A" value={t.vitaminA} unit="IU" />
+      <DetailRow label="Vitamin C" value={t.vitaminC} unit="mg" />
+      <DetailRow label="Vitamin D" value={t.vitaminD} unit="IU" />
+      {parsed.analysisText ? (
+        <div className="mt-5 rounded-[18px] bg-[#f7f7f3] p-4">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8a9198]">Health analysis</p>
+          <div className="mt-3 text-[13px] leading-6 text-[#333538] whitespace-pre-wrap">
+            <FormattedAssistantText text={parsed.analysisText} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onClose: () => void }) {
   return (
     <div className="absolute inset-0 z-[80] flex items-end sm:items-center justify-center bg-[#2c2f32]/18 p-0 sm:p-4 backdrop-blur-[2px]">
       <div className="flex flex-col max-h-[85vh] w-full max-w-md rounded-t-[28px] sm:rounded-[24px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] h-full sm:h-auto">
@@ -4005,33 +4317,8 @@ function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onC
           <p className="text-[16px] font-semibold text-[#111111]">{parsed.dishName || "Detailed Nutrition"}</p>
           <div className="w-9" />
         </div>
-        <div className="flex-1 overflow-y-auto w-full px-4 pb-8">
-           <DetailRow label="Total Carbohydrates" value={t.carbs} unit="g" />
-           <DetailRow label="Dietary Fibre" value={t.dietaryFibre} unit="g" indent />
-           <DetailRow label="Starch" value={t.starch} unit="g" indent />
-           <DetailRow label="Sugar" value={t.sugar} unit="g" indent />
-           <DetailRow label="Added Sugars" value={t.addedSugars} unit="g" indent />
-           <DetailRow label="Sugar Alcohols" value={t.sugarAlcohols} unit="g" indent />
-           <DetailRow label="Other Carbs" value={t.otherCarbs} unit="g" indent />
-           <DetailRow label="Net Carbs" value={t.netCarbs} unit="g" indent />
-           
-           <DetailRow label="Protein" value={t.protein} unit="g" />
-           
-           <DetailRow label="Total Fat" value={t.fat} unit="g" />
-           <DetailRow label="Saturated Fat" value={t.saturatedFat} unit="g" indent />
-           <DetailRow label="Trans Fat" value={t.transFat} unit="g" indent />
-           <DetailRow label="Polyunsaturated Fat" value={t.polyunsaturatedFat} unit="g" indent />
-           <DetailRow label="Monounsaturated Fat" value={t.monounsaturatedFat} unit="g" indent />
-           <DetailRow label="Other Fat" value={t.otherFat} unit="g" indent />
-           
-           <DetailRow label="Cholesterol" value={t.cholesterol} unit="mg" />
-           <DetailRow label="Sodium" value={t.sodium} unit="mg" />
-           <DetailRow label="Calcium" value={t.calcium} unit="mg" />
-           <DetailRow label="Iron" value={t.iron} unit="mg" />
-           <DetailRow label="Potassium" value={t.potassium} unit="mg" />
-           <DetailRow label="Vitamin A" value={t.vitaminA} unit="IU" />
-           <DetailRow label="Vitamin C" value={t.vitaminC} unit="mg" />
-           <DetailRow label="Vitamin D" value={t.vitaminD} unit="IU" />
+        <div className="flex-1 overflow-y-auto w-full">
+          <DishDetailModalBody parsed={parsed} />
         </div>
       </div>
     </div>
@@ -4041,10 +4328,24 @@ function DishDetailModal({ parsed, onClose }: { parsed: ParsedNutritionData; onC
 function DailyNutritionDetailsModal({
   date,
   details,
+  caloriesMetric,
+  carbsMetric,
+  proteinMetric,
+  fatMetric,
+  foodCalories,
+  exerciseCalories,
+  remainingCalories,
   onClose,
 }: {
   date: string;
   details?: NutritionDetails | null;
+  caloriesMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
+  carbsMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
+  proteinMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
+  fatMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
+  foodCalories: number;
+  exerciseCalories: number;
+  remainingCalories: number;
   onClose: () => void;
 }) {
   if (!details) {
@@ -4101,7 +4402,71 @@ function DailyNutritionDetailsModal({
     dishName: `Nutrition details for ${new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
   };
 
-  return <DishDetailModal parsed={parsedLike} onClose={onClose} />;
+  return (
+    <div className="absolute inset-0 z-[80] flex items-end sm:items-center justify-center bg-[#2c2f32]/18 p-0 sm:p-4 backdrop-blur-[2px]">
+      <div className="flex h-full w-full max-w-md flex-col rounded-t-[28px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] sm:h-auto sm:max-h-[85vh] sm:rounded-[24px]">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#ecece7] p-4">
+          <div>
+            <p className="text-[16px] font-semibold text-[#111111]">Daily nutrition</p>
+            <p className="mt-1 text-[12px] text-[#8a9198]">{new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee]" type="button">
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
+          <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 rounded-[22px] bg-[#f7f9fd] p-4">
+            <CircularMetric
+              accent="#166534"
+              current={Math.round(caloriesMetric?.current ?? 0)}
+              label="Calories"
+              target={Math.round(caloriesMetric?.target ?? 0)}
+            />
+            <div className="grid grid-cols-3 gap-2 self-center">
+              <DashboardMiniStat label="Food" value={foodCalories} />
+              <DashboardMiniStat label="Exercise" value={exerciseCalories} />
+              <DashboardMiniStat highlight label="Remaining" value={remainingCalories} />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[22px] bg-[#f7f9fd] p-4">
+            <div className="flex items-center gap-2">
+              <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
+                <Target/>
+              </TinyIconCircle>
+              <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <CircularMetric accent="#7c3aed" current={Math.round(carbsMetric?.current ?? 0)} label="Carbs (g)" target={Math.round(carbsMetric?.target ?? 0)} />
+              <CircularMetric accent="#0f766e" current={Math.round(proteinMetric?.current ?? 0)} label="Protein (g)" target={Math.round(proteinMetric?.target ?? 0)} />
+              <CircularMetric accent="#d97706" current={Math.round(fatMetric?.current ?? 0)} label="Fat (g)" target={Math.round(fatMetric?.target ?? 0)} />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[22px] border border-[#ecece7] bg-white p-1">
+            <DishDetailModalBody parsed={parsedLike} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoggedAnalyticsModal({
+  message,
+  onClose,
+}: {
+  message: ChatMessage;
+  onClose: () => void;
+}) {
+  const parsed = parseNutritionFromText(message.message);
+
+  if (!parsed) {
+    return null;
+  }
+
+  return <DishDetailModal parsed={parsed} onClose={onClose} />;
 }
 
 function DownloadIcon() {
