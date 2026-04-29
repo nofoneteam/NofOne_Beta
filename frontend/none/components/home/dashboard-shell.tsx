@@ -1786,8 +1786,8 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "home" ? (
-                <div className="mt-5 space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="mt-5 space-y-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <CaloriesCard
                       current={Math.round(caloriesMetric?.current ?? 0)}
                       foodCalories={totalFoodCalories}
@@ -1806,7 +1806,7 @@ export function DashboardShell() {
                       protein={proteinMetric}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 xl:gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
       <DesktopSummaryCard
         calories={Math.round(caloriesMetric?.current ?? 0)}
         completion={effectiveDashboard?.dailyGoals?.completionPercent ?? 0}
@@ -2335,15 +2335,15 @@ function CaloriesCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
-    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] p-2 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
-      <div className="flex items-center gap-2">
+    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-1.5 py-1.5 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
           <Flame/>
         </TinyIconCircle>
         <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Calories</p>
       </div>
 
-      <div className="mt-3 grid min-w-0 grid-cols-3 gap-1 sm:gap-2">
+      <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
         <DashboardMiniStat label="Food" value={foodCalories} unit="cal" />
         <DashboardMiniStat label="Exercise" value={exerciseCalories} unit="cal" />
         <DashboardMiniStat highlight label="Remaining" value={remaining} unit="cal" />
@@ -2381,15 +2381,15 @@ function MacrosCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
-    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] p-2 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
-      <div className="flex items-center gap-2">
+    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] px-1.5 py-1.5 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
           <Target/>
         </TinyIconCircle>
         <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Macros</p>
       </div>
 
-      <div className="mt-3 grid min-w-0 grid-cols-3 gap-1 sm:gap-2">
+      <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
         <DashboardRatioStat label="Carbs" unit="g" metric={carbs} />
         <DashboardRatioStat label="Protein" unit="g" metric={protein} />
         <DashboardRatioStat label="Fat" unit="g" metric={fat} />
@@ -2411,9 +2411,9 @@ function DashboardMiniStat({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1.5 py-1.5 sm:px-3 sm:py-3">
-      <p className={cn("text-[9px] sm:text-[11px] text-[#667085] truncate", highlight && "text-[#111111]")}>{label}</p>
-      <p className={cn("mt-0.5 text-[12px] sm:text-[16px] font-semibold text-[#111111] truncate", highlight && "sm:text-[18px]")}>{value}{unit ? ` ${unit}` : ''}</p>
+    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 sm:px-3 sm:py-3">
+      <p className={cn("text-[9px] sm:text-[11px] text-[#667085]", highlight && "text-[#111111]")}>{label}</p>
+      <p className={cn("mt-0.5 text-[12px] sm:text-[16px] font-semibold text-[#111111]", highlight && "sm:text-[18px]")}>{value}{unit ? ` ${unit}` : ''}</p>
     </div>
   );
 }
@@ -2428,11 +2428,11 @@ function DashboardRatioStat({
   metric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
 }) {
   return (
-    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1.5 py-1.5 sm:px-3 sm:py-3">
-      <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111] truncate">
+    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 sm:px-3 sm:py-3">
+      <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111]">
         {Math.round(metric?.current ?? 0)}/{Math.round(metric?.target ?? 0)}{unit}
       </p>
-      <p className="mt-0.5 text-[9px] sm:text-[11px] text-[#667085] truncate">{label}</p>
+      <p className="mt-0.5 text-[9px] sm:text-[11px] text-[#667085]">{label}</p>
     </div>
   );
 }
