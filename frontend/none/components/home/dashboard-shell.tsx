@@ -2334,19 +2334,19 @@ function CaloriesCard({
   }
 
   return (
-    <button type="button" onClick={onOpenDetails} className="block w-full text-left">
-    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] p-1 sm:p-4 transition-colors hover:bg-[#e8effd]">
+    <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
+    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] p-2 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
           <Flame/>
         </TinyIconCircle>
-        <p className="text-[14px] font-semibold text-[#111111]">Calories</p>
+        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Calories</p>
       </div>
 
-      <div className="mt-5 grid min-w-0 grid-cols-3 gap-2">
-        <DashboardMiniStat label="Food" value={foodCalories} />
-        <DashboardMiniStat label="Exercise" value={exerciseCalories} />
-        <DashboardMiniStat highlight label="Remaining" value={remaining} />
+      <div className="mt-3 grid min-w-0 grid-cols-3 gap-1 sm:gap-2">
+        <DashboardMiniStat label="Food" value={foodCalories} unit="cal" />
+        <DashboardMiniStat label="Exercise" value={exerciseCalories} unit="cal" />
+        <DashboardMiniStat highlight label="Remaining" value={remaining} unit="cal" />
       </div>
     </BaseCard>
     </button>
@@ -2380,19 +2380,19 @@ function MacrosCard({
   }
 
   return (
-    <button type="button" onClick={onOpenDetails} className="block w-full text-left">
-    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] p-1 sm:p-4 transition-colors hover:bg-[#e8effd]">
+    <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
+    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] p-2 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
           <Target/>
         </TinyIconCircle>
-        <p className="text-[14px] font-semibold text-[#111111]">Macros</p>
+        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Macros</p>
       </div>
 
-      <div className="mt-5 grid min-w-0 grid-cols-3 gap-2">
-        <DashboardRatioStat label="Carbs (g)" metric={carbs} />
-        <DashboardRatioStat label="Protein (g)" metric={protein} />
-        <DashboardRatioStat label="Fat (g)" metric={fat} />
+      <div className="mt-3 grid min-w-0 grid-cols-3 gap-1 sm:gap-2">
+        <DashboardRatioStat label="Carbs" unit="g" metric={carbs} />
+        <DashboardRatioStat label="Protein" unit="g" metric={protein} />
+        <DashboardRatioStat label="Fat" unit="g" metric={fat} />
       </div>
     </BaseCard>
     </button>
@@ -2402,33 +2402,37 @@ function MacrosCard({
 function DashboardMiniStat({
   label,
   value,
+  unit,
   highlight = false,
 }: {
   label: string;
   value: number;
+  unit?: string;
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-[16px] bg-white/70 px-3 py-3">
-      <p className={cn("text-[11px] text-[#667085]", highlight && "text-[#111111]")}>{label}</p>
-      <p className={cn("mt-1 text-[16px] font-semibold text-[#111111]", highlight && "text-[18px]")}>{value}</p>
+    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1.5 py-1.5 sm:px-3 sm:py-3">
+      <p className={cn("text-[9px] sm:text-[11px] text-[#667085] truncate", highlight && "text-[#111111]")}>{label}</p>
+      <p className={cn("mt-0.5 text-[12px] sm:text-[16px] font-semibold text-[#111111] truncate", highlight && "sm:text-[18px]")}>{value}{unit ? ` ${unit}` : ''}</p>
     </div>
   );
 }
 
 function DashboardRatioStat({
   label,
+  unit,
   metric,
 }: {
   label: string;
+  unit: string;
   metric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
 }) {
   return (
-    <div className="rounded-[16px] bg-white/70 px-3 py-3">
-      <p className="text-[16px] font-semibold text-[#111111]">
-        {Math.round(metric?.current ?? 0)}/{Math.round(metric?.target ?? 0)}
+    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1.5 py-1.5 sm:px-3 sm:py-3">
+      <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111] truncate">
+        {Math.round(metric?.current ?? 0)}/{Math.round(metric?.target ?? 0)}{unit}
       </p>
-      <p className="mt-1 text-[11px] text-[#667085]">{label}</p>
+      <p className="mt-0.5 text-[9px] sm:text-[11px] text-[#667085] truncate">{label}</p>
     </div>
   );
 }
