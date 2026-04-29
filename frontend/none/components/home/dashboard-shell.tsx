@@ -2335,7 +2335,7 @@ function CaloriesCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left">
-    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] p-4 transition-colors hover:bg-[#e8effd]">
+    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] p-1 sm:p-4 transition-colors hover:bg-[#e8effd]">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
           <Flame/>
@@ -2381,7 +2381,7 @@ function MacrosCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left">
-    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] p-4 transition-colors hover:bg-[#e8effd]">
+    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] p-1 sm:p-4 transition-colors hover:bg-[#e8effd]">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
           <Target/>
@@ -2593,7 +2593,7 @@ function LogProgressStat({
     <div>
       <p className="text-[12px] text-[#6b7280]">{label}</p>
       <p className="mt-1 text-[16px] font-semibold text-[#111111]">{current}{unit}</p>
-      <div className="mt-2 h-2 rounded-full bg-[#e7edf7]">
+      <div className="mt-2 h-2 rounded-full bg-[#e7f7eb]">
         <div className="h-full rounded-full bg-[#9ebae6]" style={{ width: `${percent}%` }} />
       </div>
       <p className="mt-1 text-[11px] text-[#6b7280]">{percent}%</p>
