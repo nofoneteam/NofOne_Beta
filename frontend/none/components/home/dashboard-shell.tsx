@@ -2427,12 +2427,28 @@ function DashboardRatioStat({
   unit: string;
   metric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
 }) {
+  const current = Math.round(metric?.current ?? 0);
+  const target = Math.round(metric?.target ?? 0);
+
   return (
-    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 mt:px-3 mt:py-3">
+    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 sm:px-3 sm:py-3 text-center">
+      
       <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111]">
-        {Math.round(metric?.current ?? 0)}/{Math.round(metric?.target ?? 0)}{unit}
+         <p className="mb text-[9px] sm:text-[11px] text-[#667085]">
+        {label}
       </p>
-      <p className="mt-0.5 text-[9px] sm:text-[11px] text-[#667085]">{label}</p>
+
+        <span className="sm:hidden">
+          {current}{unit}
+        </span>
+
+
+        <span className="hidden sm:inline">
+          {current}/{target}{unit}
+        </span>
+      </p>
+
+     
     </div>
   );
 }
