@@ -151,26 +151,39 @@ export async function apiFetch<T>(
   try {
     return await executeRequest<T>(path, options);
   } catch (error) {
+    const is401 =
+      error instanceof ApiRequestError && error.status === 401;
+
     const canRefresh =
-      error instanceof ApiRequestError &&
-      error.status === 401 &&
+      is401 &&
       Boolean(options.token) &&
       path !== API_ROUTES.auth.refresh &&
       path !== API_ROUTES.auth.logout;
 
     if (!canRefresh) {
+      if (is401 && typeof window !== "undefined") {
+        logoutFrontend();
+      }
       throw error;
     }
 
     const nextAccessToken = await refreshAccessToken();
 
     if (!nextAccessToken) {
+      logoutFrontend();
       throw new ApiRequestError("Session expired. Please sign in again.", 401);
     }
 
-    return executeRequest<T>(path, {
-      ...options,
-      token: nextAccessToken,
-    });
+    try {
+      return await executeRequest<T>(path, {
+        ...options,
+        token: nextAccessToken,
+      });
+    } catch (retryError) {
+      if (retryError instanceof ApiRequestError && retryError.status === 401) {
+        logoutFrontend();
+      }
+      throw retryError;
+    }
   }
 }

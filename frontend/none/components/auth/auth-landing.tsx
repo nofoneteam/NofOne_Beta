@@ -350,7 +350,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                   Continue with email
                 </button>
                 */}
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setOtpMethod("phone")}
                   className={cn(
@@ -361,7 +361,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                   )}
                 >
                   Continue with phone
-                </button>
+                </button> */}
               </div>
             </div>
 

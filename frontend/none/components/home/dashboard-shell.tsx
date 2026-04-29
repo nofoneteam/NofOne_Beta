@@ -1240,6 +1240,7 @@ export function DashboardShell() {
         description: "Your profile was saved successfully.",
         variant: "success",
       });
+      void loadProfileData();
     } catch (error) {
       const message = readErrorMessage(error);
       setErrorMessage(message);
