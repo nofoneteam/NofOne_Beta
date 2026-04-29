@@ -2335,7 +2335,7 @@ function CaloriesCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
-    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-1.5 py-1.5 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
+    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 transition-colors hover:bg-[#e8effd] h-full">
       <div className="flex items-center gap-1.5 sm:gap-2">
         <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
           <Flame/>
@@ -2381,7 +2381,7 @@ function MacrosCard({
 
   return (
     <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
-    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] px-1.5 py-1.5 sm:p-4 transition-colors hover:bg-[#e8effd] h-full">
+    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff]  px-0 py-0 mt:p-4 transition-colors hover:bg-[#e8effd] h-full">
       <div className="flex items-center gap-1.5 sm:gap-2">
         <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
           <Target/>
@@ -2428,7 +2428,7 @@ function DashboardRatioStat({
   metric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
 }) {
   return (
-    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 sm:px-3 sm:py-3">
+    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 mt:px-3 mt:py-3">
       <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111]">
         {Math.round(metric?.current ?? 0)}/{Math.round(metric?.target ?? 0)}{unit}
       </p>
