@@ -2854,13 +2854,6 @@ function LoggedEntriesSection({
               </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <LogNutrientChip label="Calories" value={`${loggedItem.calories}`} />
-              <LogNutrientChip label="Carbs" value={`${loggedItem.carbs}g`} />
-              <LogNutrientChip label="Protein" value={`${loggedItem.protein}g`} />
-              <LogNutrientChip label="Fat" value={`${loggedItem.fat}g`} />
-            </div>
-
             <div className="mt-4 grid grid-cols-4 gap-3">
               <LogProgressStat label="Calories" current={loggedItem.calories} target={Math.max(calorieTarget, 1)} unit="" />
               <LogProgressStat label="Carbs" current={loggedItem.carbs} target={Math.max(carbsTarget, 1)} unit="g" />
@@ -2873,14 +2866,6 @@ function LoggedEntriesSection({
         );
       })}
     </div>
-  );
-}
-
-function LogNutrientChip({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="rounded-[10px] bg-[#f4f6fb] px-2.5 py-1 text-[12px] text-[#334155]">
-      {label}: {value}
-    </span>
   );
 }
 
