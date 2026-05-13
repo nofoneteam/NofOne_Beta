@@ -854,16 +854,32 @@ export function DashboardShell() {
   const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
   const remainingCalories = Math.round((caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories);
-  const loggedNutritionDetails = useMemo(
-    () => aggregateLoggedNutritionDetails(loggedNutritionItems),
-    [loggedNutritionItems],
-  );
-  const reportNutrientCurrent = medicalNutritionInsight
-    ? getNutritionMetricValue(
-        loggedNutritionDetails,
-        medicalNutritionInsight.nutrientKey,
-      )
-    : 0;
+
+
+  const reportNutrientCurrent = useMemo(() => {
+    if (!medicalNutritionInsight) return 0;
+
+    const key = medicalNutritionInsight.nutrientKey;
+
+    // For top-level macro keys, read directly from the dashboard's daily goals
+    // metrics which are always accurate and up-to-date from the backend.
+    const macroMetricKeys: Record<string, string> = {
+      calories: "calories",
+      protein: "protein",
+      carbs: "carbs",
+      fat: "fat",
+    };
+
+    if (macroMetricKeys[key]) {
+      return metricValue(effectiveDashboard, macroMetricKeys[key] as GoalMetric["key"])?.current ?? 0;
+    }
+
+    // For micronutrients (iron, calcium, vitaminD, etc.), use the backend's
+    // persisted nutritionDetails which is the single source of truth.
+    const backendDetails = effectiveDashboard?.nutritionDetails ?? null;
+    return getNutritionMetricValue(backendDetails, key);
+  }, [medicalNutritionInsight, effectiveDashboard]);
+
   const reportNutrientCompletion = medicalNutritionInsight
     ? Math.min(
         100,
