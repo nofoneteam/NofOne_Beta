@@ -86,10 +86,6 @@ const phoneLoginRules = [
     .trim()
     .notEmpty()
     .withMessage("Firebase idToken is required"),
-  body("mode")
-    .trim()
-    .isIn(["signup", "login"])
-    .withMessage("mode must be either signup or login"),
   body("name")
     .optional()
     .trim()

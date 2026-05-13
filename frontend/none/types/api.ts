@@ -75,7 +75,6 @@ export interface GoogleLoginPayload {
 
 export interface PhoneLoginPayload {
   idToken: string;
-  mode?: "signup" | "login";
   name?: string;
   referralCode?: string;
 }
