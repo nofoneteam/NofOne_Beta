@@ -265,10 +265,10 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
 
     const currentTurnText = removeRecapSections(text);
 
-    const hasFood = /(meal|food|eat|ate|breakfast|lunch|dinner|snack|dal|roti|curry|rice|bread|pasta|pizza|salad|soup|dosa|chole|paneer|chicken|fish|meat|vegetables?|fruits?|protein|carbs?|fats?|macr|ingredient|portion|serving|calorie|kcal|nutrition|nutrient|buttermilk|milk|curd|yogurt|egg|oats|banana)/i.test(currentTurnText);
+    const hasFood = /(meal|food|eat|ate|breakfast|lunch|dinner|snack|dal|roti|curry|rice|bread|pasta|pizza|salad|soup|dosa|chole|paneer|chicken|fish|meat|vegetables?|fruits?|protein|carbs?|fats?|macr|ingredient|portion|serving|calorie|kcal|nutrition|nutrient|buttermilk|milk|curd|yogurt|egg|oats|banana|vitamin|iron|calcium|potassium|magnesium|zinc|sodium|cholesterol|supplement|multivitamin|tablet|capsule|pill)/i.test(currentTurnText);
     const hasExercise = /(?:exercise|burned|workout|exercised|ran|walked|cycled|trained|cardio|gym|run|walk)/i.test(currentTurnText);
 
-    const hasMacroLines = /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*(?:\*\*)?(?:dish name|calories|protein|carbs?|fat|total carbohydrates|total fat|dietary fibre|dietary fiber|sugar|sodium|exercise minutes|burned calories)\b/i.test(currentTurnText);
+    const hasMacroLines = /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*(?:\*\*)?(?:dish name|supplement name|calories|protein|carbs?|fat|total carbohydrates|total fat|dietary fibre|dietary fiber|sugar|sodium|exercise minutes|burned calories|key nutrients?)\b/i.test(currentTurnText);
 
     if (!hasFood && !hasMacroLines && !hasExercise) {
         return null;
@@ -317,11 +317,14 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
     let hasExplicitDishName = false;
 
     if (hasFood || hasMacroLines) {
+        // Check for explicit "Dish Name:" label
         const explicitDishMatch = currentTurnText.match(/(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*dish name\**[\s:*_-]*([^\n]+)/i);
+        // Check for "Supplement Name:" label (treat as dish name for logging)
+        const supplementNameMatch = currentTurnText.match(/(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*supplement name\**[\s:*_-]*([^\n]+)/i);
         const headingMatch = currentTurnText.match(/(?:^|\n)\s*#{1,6}\s+([^\n]+)/);
-        const dishMatch = explicitDishMatch || headingMatch;
+        const dishMatch = explicitDishMatch || supplementNameMatch || headingMatch;
         
-        if (explicitDishMatch) {
+        if (explicitDishMatch || supplementNameMatch) {
             hasExplicitDishName = true;
         }
 
