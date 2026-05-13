@@ -16,9 +16,11 @@ const MIN_MEANINGFUL_LENGTH = 4;
 const QUANTITY_UNIT_PATTERN =
   /\b\d+(?:\.\d+)?\s*(?:g|gm|grams?|kg|kgs|ml|l|litre|litres|liter|liters|cup|cups|tbsp|tsp|teaspoon|teaspoons|tablespoon|tablespoons|slice|slices|piece|pieces|roti|rotis|chapati|chapatis|egg|eggs|glass|glasses|bowl|bowls|plate|plates|serving|servings|min|mins|minute|minutes|hr|hrs|hour|hours|km|kilometer|kilometers|mile|miles|steps?)\b/i;
 const FOOD_ITEM_PATTERN =
-  /\b(dal|makhni|roti|chapati|paratha|tandoori|dosa|idli|uttapam|chole|paneer|rajma|sabzi|poha|upma|khichdi|biryani|chicken|fish|egg|eggs|meat|soyabean|soybean|soya|tofu|lentils?|beans?|chickpeas?|vegetable|vegetables|fruit|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|orange|smoothie|shake|sandwich|almonds?|peanuts?|walnuts?)\b/i;
+  /\b(dal|makhni|roti|chapati|paratha|tandoori|dosa|idli|uttapam|chole|paneer|rajma|sabzi|poha|upma|khichdi|biryani|pulao|khichdi|samosa|kachori|pakora|vada|pav|pav bhaji|misal|thepla|dhokla|jalebi|halwa|kheer|chutney|pickle|chawal|naan|kulcha|bhatura|wrap|roll|burger|fries|noodles|momos|dumplings|omelette|omelet|chicken|fish|egg|eggs|meat|mutton|beef|pork|soyabean|soybean|soya|tofu|lentils?|beans?|chickpeas?|vegetable|vegetables|fruit|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|orange|mango|grapes|smoothie|shake|sandwich|almonds?|peanuts?|walnuts?)\b/i;
 const EXERCISE_ITEM_PATTERN =
   /\b(exercise|workout|training|gym|cardio|walk|walked|walking|run|ran|running|jog|jogged|jogging|cycle|cycled|cycling|swim|swimming|yoga|stretching|tennis|badminton|football|cricket|lifted|lifting|steps?)\b/i;
+const SINGLE_NUTRIENT_PATTERN =
+  /\b(vitamin\s*[a-z0-9+-]+|vitamins\s*[a-z0-9+-]+|b12|b-12|folate|folic acid|iron|calcium|potassium|magnesium|zinc|sodium|cholesterol|protein|carbs?|fat|fats|fiber|fibre|omega\s*3|omega-3|mineral|mineral[s]?)\b/i;
 
 function messageMentionsHealthTopic(message = "") {
   return HEALTH_TOPIC_PATTERN.test(message);
@@ -56,6 +58,7 @@ function messageLooksLikeGeneralNutritionQuery(message = "") {
 
   return (
     FOOD_ITEM_PATTERN.test(normalized) ||
+    SINGLE_NUTRIENT_PATTERN.test(normalized) ||
     /\b(how many|how much|nutrition|nutritional|nutrients?|macros?|calories?|protein|carbs?|fat|fats|fiber|fibre|sugar|sodium|cholesterol|vitamin|minerals?)\b/i.test(normalized)
   );
 }
@@ -70,8 +73,6 @@ function messageLooksLikeStandaloneFoodName(message = "") {
   if (
     messageLooksLikeMealLog(normalized) ||
     messageLooksLikeQuantifiedHealthLog(normalized) ||
-    messageLooksLikeGeneralNutritionQuery(normalized) ||
-    messageMentionsHealthTopic(normalized) ||
     messageIsAllowedGeneralConversation(normalized) ||
     ABUSIVE_PATTERN.test(normalized)
   ) {
@@ -88,7 +89,7 @@ function messageLooksLikeStandaloneFoodName(message = "") {
     return false;
   }
 
-  if (!FOOD_ITEM_PATTERN.test(normalized)) {
+  if (!FOOD_ITEM_PATTERN.test(normalized) && !SINGLE_NUTRIENT_PATTERN.test(normalized)) {
     return false;
   }
 
@@ -227,7 +228,7 @@ function hasDisallowedAssistantTone(message = "") {
 }
 
 function buildHealthDomainRefusal() {
-  return "I can help with health, meals, nutrition, calories, macros, hydration, exercise, sleep, and general wellness. If you want, ask about food, a meal you had, your goals, or what I can help with.";
+  return "Can you express it a bit more clearly? If this is a food item or nutrient, send the name, serving size, or whether you had it, and I’ll help from there.";
 }
 
 function buildInvalidMessageRefusal() {

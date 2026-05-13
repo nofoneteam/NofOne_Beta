@@ -138,8 +138,16 @@ function compactLogs(logs) {
   return `Logs: ${summarizedLogs.join(" | ")}`;
 }
 
-function buildUserContextSummary({ user, profile, logs }) {
-  return [compactProfile(profile, user), compactLogs(logs)].filter(Boolean).join("\n");
+function buildUserContextSummary({ user, profile, logs }, options = {}) {
+  const {
+    includeLogs = true,
+    includeProfile = true,
+  } = options;
+
+  return [
+    includeProfile ? compactProfile(profile, user) : "",
+    includeLogs ? compactLogs(logs) : "",
+  ].filter(Boolean).join("\n");
 }
 
 function buildRecentLogDocumentIds(userId) {
@@ -174,24 +182,30 @@ async function fetchRecentLogs(userId) {
     .slice(0, env.chatContext.userLogLimit);
 }
 
-async function fetchUserContextSummary(userId) {
+async function fetchUserContextSummary(userId, options = {}) {
+  const {
+    includeLogs = true,
+  } = options;
   const db = getFirestore();
   const [userSnapshot, profileSnapshot, logs] = await Promise.all([
     db.collection(UserModel.collectionName).doc(userId).get(),
     db.collection(HealthProfileModel.collectionName).doc(userId).get(),
-    fetchRecentLogs(userId),
+    includeLogs ? fetchRecentLogs(userId) : Promise.resolve([]),
   ]);
 
   return buildUserContextSummary({
     user: serializeDocument(userSnapshot),
     profile: serializeDocument(profileSnapshot),
     logs,
-  });
+  }, options);
 }
 
-async function getUserContextSummary(userId) {
+async function getUserContextSummary(userId, options = {}) {
+  const {
+    includeLogs = true,
+  } = options;
   const redisClient = await getRedisClient();
-  const cacheKey = getUserContextCacheKey(userId);
+  const cacheKey = `${getUserContextCacheKey(userId)}:${includeLogs ? "with-logs" : "profile-only"}`;
 
   if (redisClient) {
     const cachedSummary = await redisClient.get(cacheKey);
@@ -201,7 +215,7 @@ async function getUserContextSummary(userId) {
     }
   }
 
-  const summary = await fetchUserContextSummary(userId);
+  const summary = await fetchUserContextSummary(userId, options);
 
   if (redisClient && summary) {
     await redisClient.set(cacheKey, summary, {
@@ -214,17 +228,25 @@ async function getUserContextSummary(userId) {
 
 async function refreshUserContextSummary(userId) {
   const redisClient = await getRedisClient();
-  const summary = await fetchUserContextSummary(userId);
+  const summary = await fetchUserContextSummary(userId, { includeLogs: true });
 
   if (redisClient) {
-    const cacheKey = getUserContextCacheKey(userId);
+    const fullCacheKey = `${getUserContextCacheKey(userId)}:with-logs`;
+    const profileOnlyCacheKey = `${getUserContextCacheKey(userId)}:profile-only`;
 
     if (summary) {
-      await redisClient.set(cacheKey, summary, {
+      await redisClient.set(fullCacheKey, summary, {
+        EX: env.chatContext.redisTtlSeconds,
+      });
+      const profileOnlySummary = await fetchUserContextSummary(userId, {
+        includeLogs: false,
+      });
+      await redisClient.set(profileOnlyCacheKey, profileOnlySummary, {
         EX: env.chatContext.redisTtlSeconds,
       });
     } else {
-      await redisClient.del(cacheKey);
+      await redisClient.del(fullCacheKey);
+      await redisClient.del(profileOnlyCacheKey);
     }
   }
 

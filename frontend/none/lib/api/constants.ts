@@ -21,6 +21,7 @@ export const API_ROUTES = {
     profileAiSuggestion: `${API_PREFIX}/user/profile-ai-suggestion`,
     chatPreferences: `${API_PREFIX}/user/chat-preferences`,
     reports: `${API_PREFIX}/user/reports`,
+    reportNutritionInsight: `${API_PREFIX}/user/reports/nutrition-insight`,
   },
   logs: {
     base: `${API_PREFIX}/logs`,

@@ -13,6 +13,31 @@ const { saveChatMemory } = require("./chatMemory.service");
 
 const MAX_TEXT_CHARS = 14000;
 const MAX_PREVIEW_CHARS = 420;
+const MEDICAL_NUTRITION_UNITS = {
+  protein: "g",
+  carbs: "g",
+  fat: "g",
+  dietaryFibre: "g",
+  starch: "g",
+  sugar: "g",
+  addedSugars: "g",
+  sugarAlcohols: "g",
+  otherCarbs: "g",
+  netCarbs: "g",
+  saturatedFat: "g",
+  transFat: "g",
+  polyunsaturatedFat: "g",
+  monounsaturatedFat: "g",
+  otherFat: "g",
+  vitaminA: "IU",
+  vitaminC: "mg",
+  vitaminD: "IU",
+  calcium: "mg",
+  iron: "mg",
+  potassium: "mg",
+  sodium: "mg",
+  cholesterol: "mg",
+};
 
 async function getGroqClient() {
   if (!env.groq.apiKey) {
@@ -89,6 +114,104 @@ async function summarizeReportImage(imageUrl, promptText, fileName) {
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "Report uploaded successfully.";
+}
+
+function normaliseInsightPayload(payload, reports) {
+  if (!payload || typeof payload !== "object" || payload.hasInsight !== true) {
+    return null;
+  }
+
+  const nutrientKey =
+    typeof payload.nutrientKey === "string" ? payload.nutrientKey.trim() : "";
+  const unit = MEDICAL_NUTRITION_UNITS[nutrientKey];
+  const targetValue = Number(payload.targetValue);
+
+  if (!unit || !Number.isFinite(targetValue) || targetValue <= 0) {
+    return null;
+  }
+
+  const reportTitle =
+    typeof payload.reportTitle === "string" && payload.reportTitle.trim()
+      ? payload.reportTitle.trim()
+      : reports[0]?.title || reports[0]?.fileName || null;
+  const condition =
+    typeof payload.condition === "string" && payload.condition.trim()
+      ? payload.condition.trim()
+      : null;
+  const nutrientLabel =
+    typeof payload.nutrientLabel === "string" && payload.nutrientLabel.trim()
+      ? payload.nutrientLabel.trim()
+      : nutrientKey;
+  const rationale =
+    typeof payload.rationale === "string" && payload.rationale.trim()
+      ? payload.rationale.trim()
+      : null;
+  const evidence =
+    typeof payload.evidence === "string" && payload.evidence.trim()
+      ? payload.evidence.trim()
+      : null;
+
+  return {
+    reportTitle,
+    condition,
+    nutrientKey,
+    nutrientLabel,
+    targetValue: Number(targetValue.toFixed(2)),
+    unit,
+    rationale,
+    evidence,
+  };
+}
+
+async function getMedicalNutritionInsight(userId) {
+  const reports = await listMedicalReports(userId);
+
+  if (!reports.length || !env.groq.apiKey) {
+    return null;
+  }
+
+  const usableReports = reports
+    .filter((report) => report.summary || report.extractedTextPreview)
+    .slice(0, 3)
+    .map((report) => ({
+      title: report.title || report.fileName,
+      summary: report.summary || null,
+      extractedTextPreview: report.extractedTextPreview || null,
+    }));
+
+  if (!usableReports.length) {
+    return null;
+  }
+
+  try {
+    const groq = await getGroqClient();
+    const completion = await groq.chat.completions.create({
+      model: env.groq.chatModel,
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            'You extract one diet-friendly nutrient focus from uploaded medical reports for a wellness dashboard. Return strict JSON with shape {"hasInsight": boolean, "reportTitle": string|null, "condition": string|null, "nutrientKey": string|null, "nutrientLabel": string|null, "targetValue": number|null, "rationale": string|null, "evidence": string|null}. Allowed nutrientKey values: protein, carbs, fat, dietaryFibre, starch, sugar, addedSugars, sugarAlcohols, otherCarbs, netCarbs, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat, otherFat, vitaminA, vitaminC, vitaminD, calcium, iron, potassium, sodium, cholesterol. You may use any of these when clearly relevant to a disease, diagnosis, deficiency, abnormal lab pattern, or doctor-noted risk in the report. Prefer nutrient deficiencies or meaningful disease-linked nutrient tracking such as iron, calcium, potassium, vitamin A, vitamin D, sodium, cholesterol, fibre, or protein when supported. Only set hasInsight=true when the report text clearly supports a relevant condition or deficiency and a single nutrient target would be useful for day-to-day tracking. targetValue must be a conservative general daily dietary target, never a treatment dose, megadose, or prescription. If evidence is weak, ambiguous, unreadable, or not actionable, return hasInsight=false and null for the other fields.',
+        },
+        {
+          role: "user",
+          content: `Report snapshots:\n${JSON.stringify(usableReports, null, 2)}`,
+        },
+      ],
+    });
+    const content = completion.choices?.[0]?.message?.content?.trim();
+
+    if (!content) {
+      return null;
+    }
+
+    const parsed = JSON.parse(content);
+    return normaliseInsightPayload(parsed, usableReports);
+  } catch {
+    return null;
+  }
 }
 
 async function parseReportFile(file, title) {
@@ -201,5 +324,6 @@ async function listMedicalReports(userId) {
 
 module.exports = {
   createMedicalReport,
+  getMedicalNutritionInsight,
   listMedicalReports,
 };

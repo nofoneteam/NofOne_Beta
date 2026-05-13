@@ -95,6 +95,17 @@ export interface MedicalReport {
   updatedAt: string;
 }
 
+export interface MedicalNutritionInsight {
+  reportTitle: string | null;
+  condition: string | null;
+  nutrientKey: keyof NutritionDetails;
+  nutrientLabel: string;
+  targetValue: number;
+  unit: string;
+  rationale: string | null;
+  evidence: string | null;
+}
+
 export interface ProfileAiSuggestion {
   summary: string;
   updates: Record<string, unknown>;

@@ -29,6 +29,7 @@ router.post(
   userController.updateChatPreferences
 );
 router.get("/reports", authenticate, userController.getReports);
+router.get("/reports/nutrition-insight", authenticate, userController.getMedicalNutritionInsightController);
 router.post("/reports", authenticate, handleReportUpload, userController.uploadReport);
 
 module.exports = router;

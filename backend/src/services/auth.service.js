@@ -572,14 +572,6 @@ async function loginWithPhone(payload, meta = {}) {
     (await findUserByFirebaseUid(decodedToken.uid)) ||
     (await findUserByPhoneNumber(phoneNumber));
 
-  if (payload.mode === "signup" && matchedUser) {
-    throw new ApiError(409, "Account already exists. Please login instead");
-  }
-
-  if (payload.mode === "login" && !matchedUser) {
-    throw new ApiError(404, "Account not found. Please sign up first");
-  }
-
   let user = await upsertUser({
     id: matchedUser?.id,
     email: matchedUser?.email || null,
@@ -592,7 +584,7 @@ async function loginWithPhone(payload, meta = {}) {
       null,
   });
 
-  if (payload.mode === "signup" && payload.referralCode) {
+  if (!matchedUser && payload.referralCode) {
     user = await applyReferralToUser(user, payload.referralCode);
   }
 

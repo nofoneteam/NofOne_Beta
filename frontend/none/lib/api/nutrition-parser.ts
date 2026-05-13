@@ -314,9 +314,17 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
     let vitaminC = structuredValues.vitaminC;
     let vitaminD = structuredValues.vitaminD;
 
+    let hasExplicitDishName = false;
+
     if (hasFood || hasMacroLines) {
-        const dishMatch = currentTurnText.match(/(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*dish name\**[\s:*_-]*([^\n]+)/i)
-            || currentTurnText.match(/(?:^|\n)\s*#{1,6}\s+([^\n]+)/);
+        const explicitDishMatch = currentTurnText.match(/(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*dish name\**[\s:*_-]*([^\n]+)/i);
+        const headingMatch = currentTurnText.match(/(?:^|\n)\s*#{1,6}\s+([^\n]+)/);
+        const dishMatch = explicitDishMatch || headingMatch;
+        
+        if (explicitDishMatch) {
+            hasExplicitDishName = true;
+        }
+
         if (dishMatch) {
             dishName = dishMatch[1].replace(/\*+/g, '').trim();
         }
@@ -370,13 +378,21 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         vitaminD = pickNumericValue(vitaminD, extractOptionalFloat(foodText, [/(?:vitamin d)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
     }
 
+    const hasAnyMicronutrients = [
+        dietaryFibre, starch, otherCarbs, sugar, addedSugars, sugarAlcohols, netCarbs,
+        saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat, otherFat,
+        cholesterol, sodium, calcium, iron, potassium, vitaminA, vitaminC, vitaminD
+    ].some((val) => val !== undefined && val !== 0);
+
     if (
         totalCalories === 0 &&
         totalProtein === 0 &&
         totalCarbs === 0 &&
         totalFat === 0 &&
         exerciseMinutes === 0 &&
-        exerciseCalories === 0
+        exerciseCalories === 0 &&
+        !hasAnyMicronutrients &&
+        !hasExplicitDishName
     ) {
         return null;
     }

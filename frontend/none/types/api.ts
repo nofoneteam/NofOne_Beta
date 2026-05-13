@@ -11,6 +11,7 @@ import type {
   HealthProfile,
   HealthProfileWithUser,
   MedicalReport,
+  MedicalNutritionInsight,
   NutritionDetails,
   OtpRequestResult,
   ProfileAiSuggestion,
@@ -74,7 +75,7 @@ export interface GoogleLoginPayload {
 
 export interface PhoneLoginPayload {
   idToken: string;
-  mode: "signup" | "login";
+  mode?: "signup" | "login";
   name?: string;
   referralCode?: string;
 }
@@ -198,6 +199,7 @@ export type AuthMeResponse = ApiSuccessResponse<{ user: User }>;
 export type SaveProfileResponse = ApiSuccessResponse<HealthProfile>;
 export type GetProfileResponse = ApiSuccessResponse<HealthProfileWithUser>;
 export type GetMedicalReportsResponse = ApiSuccessResponse<{ reports: MedicalReport[] }>;
+export type GetMedicalNutritionInsightResponse = ApiSuccessResponse<{ insight: MedicalNutritionInsight | null }>;
 export type UploadMedicalReportResponse = ApiSuccessResponse<MedicalReport>;
 export type ProfileAiSuggestionResponse = ApiSuccessResponse<ProfileAiSuggestion>;
 export type GetChatPreferencesResponse = ApiSuccessResponse<ChatPreferences>;

@@ -8,6 +8,7 @@ const {
 } = require("../services/user.service");
 const {
   createMedicalReport,
+  getMedicalNutritionInsight,
   listMedicalReports,
 } = require("../services/medicalReport.service");
 
@@ -53,6 +54,15 @@ const getReports = asyncHandler(async (request, response) => {
   });
 });
 
+const getMedicalNutritionInsightController = asyncHandler(async (request, response) => {
+  const insight = await getMedicalNutritionInsight(request.user.userId);
+
+  response.status(200).json({
+    success: true,
+    data: { insight },
+  });
+});
+
 const generateAiProfileSuggestion = asyncHandler(async (request, response) => {
   const result = await generateProfileAiSuggestion(
     request.user.userId,
@@ -92,6 +102,7 @@ module.exports = {
   getProfile,
   uploadReport,
   getReports,
+  getMedicalNutritionInsightController,
   generateAiProfileSuggestion,
   getChatPreferences,
   updateChatPreferences,

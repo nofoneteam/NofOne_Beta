@@ -31,6 +31,8 @@ import {
   Flame,
   Loader2,
   Download,
+  MoonStar,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -59,6 +61,7 @@ import type {
   GoalMetric,
   HealthProfileWithUser,
   MedicalReport,
+  MedicalNutritionInsight,
   NutritionDetails,
   User,
   WeeklyReport,
@@ -395,6 +398,30 @@ function sumNutritionDetails(
   return normaliseNutritionDetails(next);
 }
 
+function getNutritionMetricValue(
+  details: NutritionDetails | null | undefined,
+  key: keyof NutritionDetails,
+) {
+  const value = details?.[key];
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function aggregateLoggedNutritionDetails(
+  items: Record<string, LoggedNutritionItem>,
+): NutritionDetails | null {
+  let aggregate: NutritionDetails | null = null;
+
+  for (const item of Object.values(items)) {
+    if (!item.nutritionDetails) {
+      continue;
+    }
+
+    aggregate = sumNutritionDetails(aggregate, item.nutritionDetails, 1);
+  }
+
+  return aggregate;
+}
+
 function buildProfilePayload(profile: HealthProfileWithUser): UpsertHealthProfilePayload {
   return {
     age: profile.age,
@@ -495,6 +522,7 @@ export function DashboardShell() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarPosition, setCalendarPosition] = useState({ top: 0, left: 0 });
   const [chatHistoryModalOpen, setChatHistoryModalOpen] = useState(false);
+  const [reportFocusModalOpen, setReportFocusModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMode, setReportMode] = useState<ReportModalMode>("view");
@@ -509,6 +537,7 @@ export function DashboardShell() {
   const [profile, setProfile] = useState<HealthProfileWithUser | null>(null);
   const [chatPreferences, setChatPreferences] = useState<ChatPreferences | null>(null);
   const [medicalReports, setMedicalReports] = useState<MedicalReport[]>([]);
+  const [medicalNutritionInsight, setMedicalNutritionInsight] = useState<MedicalNutritionInsight | null>(null);
   const [weightTracker, setWeightTracker] = useState<WeightTrackerSummary | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [weeklyReport, setWeeklyReport] = useState<WeeklyReport | null>(null);
@@ -538,6 +567,7 @@ export function DashboardShell() {
   const [loggedNutritionItems, setLoggedNutritionItems] = useState<Record<string, LoggedNutritionItem>>({});
   const [nutritionSummaryOpen, setNutritionSummaryOpen] = useState(false);
   const [openLoggedEntryMenuId, setOpenLoggedEntryMenuId] = useState<string | null>(null);
+  const [deletingLoggedItemId, setDeletingLoggedItemId] = useState<string | null>(null);
   const [analyticsTarget, setAnalyticsTarget] = useState<{
     message: ChatMessage;
     sourceMessage: ChatMessage | null;
@@ -670,10 +700,11 @@ export function DashboardShell() {
     setProfileLoading(true);
 
     try {
-      const [profileResponse, reportsResponse, chatPreferencesResponse] = await Promise.all([
+      const [profileResponse, reportsResponse, chatPreferencesResponse, insightResponse] = await Promise.all([
         userApi.getProfile(token),
         userApi.getReports(token),
         userApi.getChatPreferences(token),
+        userApi.getMedicalNutritionInsight(token).catch(() => ({ data: { insight: null } })),
       ]);
 
       if (!isProfileComplete(profileResponse.data)) {
@@ -684,6 +715,7 @@ export function DashboardShell() {
       setProfile(profileResponse.data);
       setMedicalReports(reportsResponse.data.reports);
       setChatPreferences(chatPreferencesResponse.data);
+      setMedicalNutritionInsight(insightResponse.data.insight ?? null);
     } catch (error) {
       showErrorToast("Unable to load profile", error);
     } finally {
@@ -813,12 +845,31 @@ export function DashboardShell() {
   const proteinMetric = metricValue(effectiveDashboard, "protein");
   const fatMetric = metricValue(effectiveDashboard, "fat");
   const waterMetric = metricValue(effectiveDashboard, "waterIntake");
+  const sleepMetric = metricValue(effectiveDashboard, "sleepHours");
 
   const currentWater = Math.round(waterMetric?.current ?? 0);
   const targetWater = Math.max(1, Math.round(waterMetric?.target ?? 8));
+  const currentSleep = Math.round(sleepMetric?.current ?? 0);
+  const targetSleep = Math.max(1, Math.round(sleepMetric?.target ?? 8));
   const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
   const remainingCalories = Math.round((caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories);
+  const loggedNutritionDetails = useMemo(
+    () => aggregateLoggedNutritionDetails(loggedNutritionItems),
+    [loggedNutritionItems],
+  );
+  const reportNutrientCurrent = medicalNutritionInsight
+    ? getNutritionMetricValue(
+        loggedNutritionDetails,
+        medicalNutritionInsight.nutrientKey,
+      )
+    : 0;
+  const reportNutrientCompletion = medicalNutritionInsight
+    ? Math.min(
+        100,
+        Math.round((reportNutrientCurrent / Math.max(medicalNutritionInsight.targetValue, 1)) * 100),
+      )
+    : 0;
   const loggedDashboardEntries = useMemo<LoggedDashboardEntry[]>(() => {
     const entries: LoggedDashboardEntry[] = [];
 
@@ -850,6 +901,27 @@ export function DashboardShell() {
 
     return entries.reverse();
   }, [chatHistory, loggedNutritionItems]);
+
+  const persistLoggedNutritionItems = useCallback(
+    (dateIso: string, nextLoggedItems: Record<string, LoggedNutritionItem>) => {
+      setLoggedNutritionItems(nextLoggedItems);
+
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      if (Object.keys(nextLoggedItems).length === 0) {
+        window.localStorage.removeItem(getNutritionLogStorageKey(dateIso));
+        return;
+      }
+
+      window.localStorage.setItem(
+        getNutritionLogStorageKey(dateIso),
+        JSON.stringify(nextLoggedItems),
+      );
+    },
+    [],
+  );
 
   async function handleLogout() {
     const token = getStoredAccessToken();
@@ -932,6 +1004,73 @@ export function DashboardShell() {
       });
     } finally {
       setSavingWater(false);
+    }
+  }
+
+  async function handleSleepUpdate(delta: number) {
+    const token = getStoredAccessToken();
+
+    if (!token || !sleepMetric) {
+      return;
+    }
+
+    const previousSleep = sleepMetric.current;
+    const nextSleep = Math.max(0, previousSleep + delta);
+
+    setErrorMessage(null);
+    setDashboard((current) =>
+      current
+        ? {
+            ...current,
+            dailyGoals: {
+              ...current.dailyGoals,
+              metrics: current.dailyGoals.metrics.map((metric) =>
+                metric.key === "sleepHours"
+                  ? { ...metric, current: nextSleep }
+                  : metric,
+              ),
+            },
+          }
+        : current,
+    );
+
+    try {
+      await logsApi.saveDailyLog(
+        {
+          date: selectedIsoDate,
+          sleepHours: nextSleep,
+        },
+        token,
+      );
+
+      toast({
+        title: "Sleep updated",
+        description: `Sleep changed to ${nextSleep} hour${nextSleep === 1 ? "" : "s"}.`,
+        variant: "success",
+      });
+    } catch (error) {
+      const message = readErrorMessage(error);
+      setDashboard((current) =>
+        current
+          ? {
+              ...current,
+              dailyGoals: {
+                ...current.dailyGoals,
+                metrics: current.dailyGoals.metrics.map((metric) =>
+                  metric.key === "sleepHours"
+                    ? { ...metric, current: previousSleep }
+                    : metric,
+                ),
+              },
+            }
+          : current,
+      );
+      setErrorMessage(message);
+      toast({
+        title: "Unable to update sleep",
+        description: message,
+        variant: "error",
+      });
     }
   }
 
@@ -1151,9 +1290,9 @@ export function DashboardShell() {
       ? sumNutritionDetails(withoutExistingDetails, totals.nutritionDetails, 1)
       : withoutExistingDetails;
 
-    const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
+    const prevExeCal = Math.round(dashboard?.dailyGoals?.rawMetrics?.exerciseCalories ?? 0);
     const prevCal = Math.round(
-      dashboard?.dailyGoals.rawMetrics?.calories
+      dashboard?.dailyGoals?.rawMetrics?.calories
         ?? ((metricValue(dashboard, "calories")?.current ?? 0) + prevExeCal),
     );
     const prevCrb = Math.round(metricValue(dashboard, "carbs")?.current ?? 0);
@@ -1164,12 +1303,12 @@ export function DashboardShell() {
     try {
       await logsApi.saveDailyLog({
         date: dateIso,
-        calories: prevCal + diff.calories,
-        carbs: prevCrb + diff.carbs,
-        protein: prevPro + diff.protein,
-        fat: prevFat + diff.fat,
-        exerciseMinutes: prevExeMin + diff.exerciseMinutes,
-        exerciseCalories: prevExeCal + diff.exerciseCalories,
+        calories: Math.max(0, prevCal + diff.calories),
+        carbs: Math.max(0, prevCrb + diff.carbs),
+        protein: Math.max(0, prevPro + diff.protein),
+        fat: Math.max(0, prevFat + diff.fat),
+        exerciseMinutes: Math.max(0, prevExeMin + diff.exerciseMinutes),
+        exerciseCalories: Math.max(0, prevExeCal + diff.exerciseCalories),
         nutritionDetails: nextNutritionDetails,
       }, token);
       
@@ -1192,26 +1331,89 @@ export function DashboardShell() {
       };
 
       const nextLoggedItems = { ...loggedNutritionItems, [messageId]: nextItem };
-      setLoggedNutritionItems(nextLoggedItems);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          getNutritionLogStorageKey(dateIso),
-          JSON.stringify(nextLoggedItems),
-        );
-      }
+      persistLoggedNutritionItems(dateIso, nextLoggedItems);
 
       void loadDashboard(dateIso);
       if (!isUpdate) {
         setSelectedMessage(null);
       }
-    } catch {
+    } catch (err) {
+      console.error("Log save error:", err);
       toast({
         title: "Error",
-        description: "Could not log nutrition data.",
+        description: `Could not log nutrition data: ${err instanceof Error ? err.message : String(err)}`,
         variant: "error",
       });
     }
   }
+
+  const handleDeleteLoggedItem = async (messageId: string, dateIso: string) => {
+    const token = getStoredAccessToken();
+    const existingLog = loggedNutritionItems[messageId];
+
+    if (!token || !existingLog || deletingLoggedItemId === messageId) {
+      return;
+    }
+
+    setDeletingLoggedItemId(messageId);
+    setOpenLoggedEntryMenuId(null);
+
+    const currentNutritionDetails = normaliseNutritionDetails(dashboard?.nutritionDetails ?? null);
+    const nextNutritionDetails = existingLog.nutritionDetails
+      ? sumNutritionDetails(currentNutritionDetails, existingLog.nutritionDetails, -1)
+      : currentNutritionDetails;
+
+    const prevExeCal = Math.round(dashboard?.dailyGoals?.rawMetrics?.exerciseCalories ?? 0);
+    const prevCal = Math.round(
+      dashboard?.dailyGoals?.rawMetrics?.calories
+        ?? ((metricValue(dashboard, "calories")?.current ?? 0) + prevExeCal),
+    );
+    const prevCrb = Math.round(metricValue(dashboard, "carbs")?.current ?? 0);
+    const prevPro = Math.round(metricValue(dashboard, "protein")?.current ?? 0);
+    const prevFat = Math.round(metricValue(dashboard, "fat")?.current ?? 0);
+    const prevExeMin = Math.round(metricValue(dashboard, "exerciseMinutes")?.current ?? 0);
+
+    try {
+      await logsApi.saveDailyLog(
+        {
+          date: dateIso,
+          calories: Math.max(0, prevCal - existingLog.calories),
+          carbs: Math.max(0, prevCrb - existingLog.carbs),
+          protein: Math.max(0, prevPro - existingLog.protein),
+          fat: Math.max(0, prevFat - existingLog.fat),
+          exerciseMinutes: Math.max(0, prevExeMin - existingLog.exerciseMinutes),
+          exerciseCalories: Math.max(0, prevExeCal - existingLog.exerciseCalories),
+          nutritionDetails: nextNutritionDetails,
+        },
+        token,
+      );
+
+      const nextLoggedItems = { ...loggedNutritionItems };
+      delete nextLoggedItems[messageId];
+      persistLoggedNutritionItems(dateIso, nextLoggedItems);
+
+      if (selectedMessage?.id === messageId) {
+        setSelectedMessage(null);
+        setSelectedSourceMessage(null);
+      }
+
+      toast({
+        title: "Dish deleted",
+        description: "Calories, macros, and nutrition details were updated.",
+        variant: "success",
+      });
+
+      void loadDashboard(dateIso);
+    } catch {
+      toast({
+        title: "Delete failed",
+        description: "Could not remove this logged dish.",
+        variant: "error",
+      });
+    } finally {
+      setDeletingLoggedItemId(null);
+    }
+  };
 
   async function handleSaveProfile(payload: UpsertHealthProfilePayload) {
     const token = getStoredAccessToken();
@@ -1393,6 +1595,10 @@ export function DashboardShell() {
         token,
       );
       setMedicalReports((current) => [response.data, ...current]);
+      const insightResponse = await userApi
+        .getMedicalNutritionInsight(token)
+        .catch(() => ({ data: { insight: null } }));
+      setMedicalNutritionInsight(insightResponse.data.insight ?? null);
       toast({
         title: "Report uploaded",
         description: "Medical report parsed and added to your context.",
@@ -1468,7 +1674,7 @@ export function DashboardShell() {
     };
 
     if (metricKey === "calories") {
-      const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
+      const prevExeCal = Math.round(dashboard?.dailyGoals?.rawMetrics?.exerciseCalories ?? 0);
       logPayload.calories = normalizedValue + prevExeCal;
       logPayload.nutritionDetails = normaliseNutritionDetails({
         ...(dashboard?.nutritionDetails ?? {}),
@@ -1476,7 +1682,7 @@ export function DashboardShell() {
       });
     } else if (metricKey === "exerciseMinutes") {
       const prevExeMin = Math.round(metricValue(dashboard, "exerciseMinutes")?.current ?? 0);
-      const prevExeCal = Math.round(dashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
+      const prevExeCal = Math.round(dashboard?.dailyGoals?.rawMetrics?.exerciseCalories ?? 0);
       const multiplier = prevExeMin > 0 ? (prevExeCal / prevExeMin) : 5;
       
       logPayload.exerciseMinutes = normalizedValue;
@@ -1787,7 +1993,7 @@ export function DashboardShell() {
                   />
                 </div>
               ) : activeSection === "home" ? (
-                <div className="mt-5 space-y-3">
+                <div className="mt-5 space-y-2 sm:space-y-3">
                   <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <CaloriesCard
                       current={Math.round(caloriesMetric?.current ?? 0)}
@@ -1808,23 +2014,34 @@ export function DashboardShell() {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:gap-3">
-      <DesktopSummaryCard
-        calories={Math.round(caloriesMetric?.current ?? 0)}
-        completion={effectiveDashboard?.dailyGoals?.completionPercent ?? 0}
-        loading={loading}
-        target={Math.round(caloriesMetric?.target ?? 0)}
-        water={currentWater}
-      />
-
-      <WaterCard
-        current={currentWater}
-        loading={loading}
-        saving={savingWater}
-        target={targetWater}
-        onDecrement={() => handleWaterUpdate(-1)}
-        onIncrement={() => handleWaterUpdate(1)}
-      />
-    </div>
+                    <WaterCard
+                      current={currentWater}
+                      loading={loading}
+                      saving={savingWater}
+                      target={targetWater}
+                      onDecrement={() => handleWaterUpdate(-1)}
+                      onIncrement={() => handleWaterUpdate(1)}
+                    />
+                    <SleepCard
+                      current={currentSleep}
+                      loading={loading}
+                      target={targetSleep}
+                      onDecrement={() => void handleSleepUpdate(-1)}
+                      onIncrement={() => void handleSleepUpdate(1)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:gap-3">
+                    <DesktopSummaryCard
+                      calories={Math.round(caloriesMetric?.current ?? 0)}
+                      completion={effectiveDashboard?.dailyGoals?.completionPercent ?? 0}
+                      insight={medicalNutritionInsight}
+                      loading={loading}
+                      onOpenDetails={() => setReportFocusModalOpen(true)}
+                      nutrientCompletion={reportNutrientCompletion}
+                      nutrientCurrent={reportNutrientCurrent}
+                      target={Math.round(caloriesMetric?.target ?? 0)}
+                    />
+                  </div>
                   
                   
                   
@@ -1837,8 +2054,12 @@ export function DashboardShell() {
                     carbsTarget={Math.round(carbsMetric?.target ?? 0)}
                     proteinTarget={Math.round(proteinMetric?.target ?? 0)}
                     fatTarget={Math.round(fatMetric?.target ?? 0)}
+                    deletingMessageId={deletingLoggedItemId}
                     openMenuId={openLoggedEntryMenuId}
                     onCloseMenu={() => setOpenLoggedEntryMenuId(null)}
+                    onDelete={(messageId) => {
+                      void handleDeleteLoggedItem(messageId, selectedIsoDate);
+                    }}
                     onEdit={(entry) => {
                       setOpenLoggedEntryMenuId(null);
                       setSelectedSourceMessage(entry.sourceMessage);
@@ -1985,6 +2206,15 @@ export function DashboardShell() {
               exerciseCalories={totalExerciseCalories}
               remainingCalories={remainingCalories}
               onClose={() => setNutritionSummaryOpen(false)}
+            />
+          ) : null}
+
+          {reportFocusModalOpen && medicalNutritionInsight ? (
+            <ReportFocusModal
+              insight={medicalNutritionInsight}
+              nutrientCompletion={reportNutrientCompletion}
+              nutrientCurrent={reportNutrientCurrent}
+              onClose={() => setReportFocusModalOpen(false)}
             />
           ) : null}
 
@@ -2266,15 +2496,21 @@ function ReferralSection({
 function DesktopSummaryCard({
   calories,
   completion,
+  insight,
   loading,
+  onOpenDetails,
+  nutrientCompletion,
+  nutrientCurrent,
   target,
-  water,
 }: {
   calories: number;
   completion: number;
+  insight: MedicalNutritionInsight | null;
   loading: boolean;
+  onOpenDetails: () => void;
+  nutrientCompletion: number;
+  nutrientCurrent: number;
   target: number;
-  water: number;
 }) {
   if (loading) {
     return (
@@ -2287,20 +2523,50 @@ function DesktopSummaryCard({
     );
   }
 
-  return (
-    <BaseCard className="animate-fade-up p-3 sm:p-4 h-full relative min-h-[140px]">
-      <div className="flex items-center gap-2">
-        <TinyIconCircle bg="bg-[#e2f1e2]" text="text-[#166534]">
-          <Target/>
-        </TinyIconCircle>
-        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Completion</p>
-      </div>
+  const cardContent = (
+  <BaseCard className="animate-fade-up flex h-full min-h-[164px] flex-col p-2 sm:min-h-[176px] md:p-4">
+    <div className="flex items-center gap-2">
+      <TinyIconCircle bg="bg-[#e2f1e2]" text="text-[#166534]">
+        <Target />
+      </TinyIconCircle>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none pt-6 sm:pt-8">
-        <p className="text-[32px] sm:text-[42px] font-semibold leading-none text-[#111111]">{completion}%</p>
-        <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-[12px] text-[#9ea4ab]">Calories {calories} / {target}</p>
-      </div>
-    </BaseCard>
+      <p className="text-[13px] font-semibold text-[#111111] sm:text-[14px]">
+        {insight ? "Report Focus" : "Completion"}
+      </p>
+    </div>
+
+    <div className="flex flex-1 flex-col items-center justify-center px-2 pt-2 text-center md:px-3 md:pt-4">
+      <p className="text-[28px] font-semibold leading-none text-[#111111] sm:text-[42px]">
+        {insight ? nutrientCompletion : completion}%
+      </p>
+
+      {insight ? (
+        <>
+          <p className="mt-2 text-[11px] font-semibold leading-4 text-[#111111] sm:text-[12px]">
+            {insight.nutrientLabel}
+          </p>
+
+          <p className="mt-2 text-[10px] font-medium text-[#4b7a58] sm:text-[11px]">
+            Tap to view details
+          </p>
+        </>
+      ) : (
+        <p className="mt-1.5 text-[11px] text-[#9ea4ab] sm:mt-2 sm:text-[12px]">
+          Calories {calories} / {target}
+        </p>
+      )}
+    </div>
+  </BaseCard>
+);
+
+  if (!insight) {
+    return cardContent;
+  }
+
+  return (
+    <button type="button" onClick={onOpenDetails} className="block h-full w-full text-left">
+      {cardContent}
+    </button>
   );
 }
 
@@ -2345,9 +2611,9 @@ function CaloriesCard({
       </div>
 
       <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
-        <DashboardMiniStat label="Food" value={foodCalories} unit="cal" />
-        <DashboardMiniStat label="Exercise" value={exerciseCalories} unit="cal" />
-        <DashboardMiniStat highlight label="Remaining" value={remaining} unit="cal" />
+        <DashboardMiniStat label="Food" value={foodCalories} unit="" />
+        <DashboardMiniStat label="Exercise" value={exerciseCalories} unit="" />
+        <DashboardMiniStat highlight label="Remaining" value={remaining} unit="" />
       </div>
     </BaseCard>
     </button>
@@ -2391,9 +2657,9 @@ function MacrosCard({
       </div>
 
       <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
-        <DashboardRatioStat label="Carbs" unit="g" metric={carbs} />
-        <DashboardRatioStat label="Protein" unit="g" metric={protein} />
-        <DashboardRatioStat label="Fat" unit="g" metric={fat} />
+        <DashboardRatioStat label="Carbs" unit="" metric={carbs} />
+        <DashboardRatioStat label="Protein" unit="" metric={protein} />
+        <DashboardRatioStat label="Fat" unit="" metric={fat} />
       </div>
     </BaseCard>
     </button>
@@ -2433,12 +2699,11 @@ function DashboardRatioStat({
 
   return (
     <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 sm:px-3 sm:py-3 text-center">
-      
-      <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111]">
-         <p className="mb text-[9px] sm:text-[11px] text-[#667085]">
+      <p className="mb text-[9px] sm:text-[11px] text-[#667085]">
         {label}
       </p>
 
+      <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111]">
         <span className="sm:hidden">
           {current}{unit}
         </span>
@@ -2491,10 +2756,12 @@ function CircularMetric({
 function LoggedEntriesSection({
   calorieTarget,
   carbsTarget,
+  deletingMessageId,
   entries,
   fatTarget,
   openMenuId,
   onCloseMenu,
+  onDelete,
   onEdit,
   onOpenMenu,
   proteinTarget,
@@ -2502,10 +2769,12 @@ function LoggedEntriesSection({
 }: {
   calorieTarget: number;
   carbsTarget: number;
+  deletingMessageId: string | null;
   entries: LoggedDashboardEntry[];
   fatTarget: number;
   openMenuId: string | null;
   onCloseMenu: () => void;
+  onDelete: (messageId: string) => void;
   onEdit: (entry: LoggedDashboardEntry) => void;
   onOpenMenu: (messageId: string) => void;
   proteinTarget: number;
@@ -2526,6 +2795,7 @@ function LoggedEntriesSection({
       {entries.map((entry) => {
         const { parsed, assistantMessage, sourceMessage, loggedItem } = entry;
         const title = loggedItem.name || parsed.dishName || sourceMessage?.message || "Logged item";
+        const isDeleting = deletingMessageId === assistantMessage.id;
 
         return (
           <BaseCard key={assistantMessage.id} className="p-4">
@@ -2541,6 +2811,14 @@ function LoggedEntriesSection({
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-[#ecece7] text-[#111111] transition-colors hover:bg-[#f7f7f3]"
                 >
                   <PencilLine className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(assistantMessage.id)}
+                  disabled={isDeleting}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[#f4d4d4] text-[#b42318] transition-colors hover:bg-[#fff4f2] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 </button>
                 <button
                   type="button"
@@ -2560,6 +2838,15 @@ function LoggedEntriesSection({
                       >
                         <Eye className="h-[13px] w-[13px]" />
                         View detailed analytics
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(assistantMessage.id)}
+                        disabled={isDeleting}
+                        className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[13px] text-[#b42318] transition-colors hover:bg-[#fff4f2] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isDeleting ? <Loader2 className="h-[13px] w-[13px] animate-spin" /> : <Trash2 className="h-[13px] w-[13px]" />}
+                        Delete logged dish
                       </button>
                     </div>
                   </>
@@ -2647,7 +2934,7 @@ function WaterCard({
   }
 
   return (
-    <BaseCard className="animate-fade-up animation-delay-2 p-3 sm:p-4">
+    <BaseCard className="animate-fade-up animation-delay-2 px-0 py-0 mt:p-4">
       <div className="flex items-center gap-2">
         <TinyIconCircle bg="bg-[#e7f4ff]" text="text-[#6bb0e7]">
           <DropletIcon/>
@@ -2677,6 +2964,70 @@ function WaterCard({
           -
         </ActionPill>
         <ActionPill disabled={saving} onClick={onIncrement} primary>
+          +
+        </ActionPill>
+      </div>
+    </BaseCard>
+  );
+}
+
+function SleepCard({
+  current,
+  loading,
+  onDecrement,
+  onIncrement,
+  target,
+}: {
+  current: number;
+  loading: boolean;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  target: number;
+}) {
+  if (loading) {
+    return (
+      <BaseCard className="p-4">
+        <ShimmerLine className="h-4 w-16" />
+        <div className="mt-5 h-29.5 rounded-[18px] bg-[#f3f3ee] shimmer" />
+      </BaseCard>
+    );
+  }
+
+  return (
+    <BaseCard className="animate-fade-up animation-delay-2 px-0 py-0 mt:p-4">
+      <div className="flex items-center gap-2">
+        <TinyIconCircle bg="bg-[#ede9fe]" text="text-[#6d28d9]">
+          <MoonStar />
+        </TinyIconCircle>
+        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Sleep</p>
+      </div>
+
+      <div className="mt-2 text-center sm:mt-3">
+        <p className="text-[28px] font-semibold leading-none text-[#111111] sm:text-[39px]">
+          {current}
+        </p>
+        <p className="mt-0.5 text-[10px] text-[#9ea4ab] sm:mt-1 sm:text-[11px]">
+          of {target} hours
+        </p>
+      </div>
+
+      <div className="mt-2 flex justify-center gap-1 sm:mt-3">
+        {Array.from({ length: target }).map((_, index) => (
+          <span
+            key={index}
+            className={cn(
+              "h-1.5 w-1.5 rounded-full transition-colors duration-300 sm:h-1.75 sm:w-1.75",
+              index < current ? "bg-[#8b5cf6]" : "bg-[#e9ddff]",
+            )}
+          />
+        ))}
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:mt-4 sm:gap-2">
+        <ActionPill disabled={current <= 0} onClick={onDecrement}>
+          -
+        </ActionPill>
+        <ActionPill onClick={onIncrement} primary>
           +
         </ActionPill>
       </div>
@@ -3829,8 +4180,8 @@ function MessageModalRouter({
 function PlainMessageModal({ text, onClose }: { text: string; onClose: () => void }) {
   return (
     <div className="absolute inset-0 z-[70] flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
-      <div className="w-full max-w-md rounded-[24px] border border-[#ecece7] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-        <div className="flex items-start justify-between gap-4 mb-4">
+      <div className="flex flex-col max-h-[85vh] w-full max-w-md rounded-[24px] border border-[#ecece7] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+        <div className="flex shrink-0 items-start justify-between gap-4 mb-4">
           <p className="text-[16px] font-semibold text-[#111111]">Assistant</p>
           <button
             className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee]"
@@ -3840,7 +4191,7 @@ function PlainMessageModal({ text, onClose }: { text: string; onClose: () => voi
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="rounded-[16px] bg-[#f7f7f3] px-4 py-3 text-[#111111]">
+        <div className="flex-1 overflow-y-auto rounded-[16px] bg-[#f7f7f3] px-4 py-3 text-[#111111]">
           <FormattedAssistantText text={text} />
         </div>
       </div>
@@ -4391,6 +4742,94 @@ function DailyNutritionDetailsModal({
 
           <div className="mt-4 rounded-[22px] border border-[#ecece7] bg-white p-1">
             <DishDetailModalBody parsed={parsedLike} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportFocusModal({
+  insight,
+  nutrientCompletion,
+  nutrientCurrent,
+  onClose,
+}: {
+  insight: MedicalNutritionInsight;
+  nutrientCompletion: number;
+  nutrientCurrent: number;
+  onClose: () => void;
+}) {
+  const reportLabel = insight.reportTitle || "Uploaded report";
+  const focusLabel = `${insight.nutrientLabel}${insight.condition ? ` for ${insight.condition}` : ""}`;
+
+  return (
+    <div className="absolute inset-0 z-[80] flex items-end justify-center bg-[#2c2f32]/18 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
+      <div className="flex h-full w-full max-w-md flex-col rounded-t-[28px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] sm:h-auto sm:max-h-[85vh] sm:rounded-[24px]">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#ecece7] p-4">
+          <div>
+            <p className="text-[16px] font-semibold text-[#111111]">Report Focus</p>
+            <p className="mt-1 text-[12px] text-[#8a9198]">{reportLabel}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee]"
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+          <div className="rounded-[22px] bg-[#f7faf7] px-4 py-5 text-center">
+            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-[#6b8f77]">
+              Current progress
+            </p>
+            <p className="mt-3 text-[40px] font-semibold leading-none text-[#111111]">
+              {nutrientCompletion}%
+            </p>
+            <p className="mt-3 text-[14px] font-semibold leading-6 text-[#111111]">
+              {focusLabel}
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e757d]">
+              {Math.round(nutrientCurrent)} / {Math.round(insight.targetValue)} {insight.unit}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-[18px] border border-[#ecece7] bg-[#fcfcf9] p-4">
+              <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#8a9198]">
+                Focus nutrient
+              </p>
+              <p className="mt-2 text-[15px] font-semibold text-[#111111]">{insight.nutrientLabel}</p>
+            </div>
+
+            {insight.condition ? (
+              <div className="rounded-[18px] border border-[#ecece7] bg-[#fcfcf9] p-4">
+                <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#8a9198]">
+                  Related condition
+                </p>
+                <p className="mt-2 text-[15px] font-semibold text-[#111111]">{insight.condition}</p>
+              </div>
+            ) : null}
+
+            {insight.rationale ? (
+              <div className="rounded-[18px] border border-[#ecece7] bg-[#fcfcf9] p-4">
+                <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#8a9198]">
+                  Why this focus
+                </p>
+                <p className="mt-2 text-[14px] leading-6 text-[#4b4f55]">{insight.rationale}</p>
+              </div>
+            ) : null}
+
+            {insight.evidence ? (
+              <div className="rounded-[18px] border border-[#ecece7] bg-[#fcfcf9] p-4">
+                <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#8a9198]">
+                  Evidence from report
+                </p>
+                <p className="mt-2 text-[14px] leading-6 text-[#4b4f55]">{insight.evidence}</p>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

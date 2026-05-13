@@ -197,7 +197,9 @@ async function handleChatTurn(userId, payload) {
           preferenceMemories: [],
         }),
     chatPreferences.includeProfileContext
-      ? getUserContextSummary(userId)
+      ? getUserContextSummary(userId, {
+          includeLogs: needsContextForThisTurn,
+        })
       : Promise.resolve(""),
   ]);
   const filteredMemoryContext = {

@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api/api-fetch";
 import { API_ROUTES } from "@/lib/api/constants";
 import type {
   GetChatPreferencesResponse,
+  GetMedicalNutritionInsightResponse,
   GetProfileResponse,
   GetMedicalReportsResponse,
   ProfileAiSuggestionPayload,
@@ -73,6 +74,17 @@ export const userApi = {
       token,
       cookie,
     });
+  },
+
+  getMedicalNutritionInsight(token?: string | null, cookie?: string | null) {
+    return apiFetch<GetMedicalNutritionInsightResponse["data"]>(
+      API_ROUTES.user.reportNutritionInsight,
+      {
+        method: "GET",
+        token,
+        cookie,
+      },
+    );
   },
 
   uploadReport(payload: UploadMedicalReportPayload, token?: string | null) {
