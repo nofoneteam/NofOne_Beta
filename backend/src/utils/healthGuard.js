@@ -1,13 +1,15 @@
 const HEALTH_TOPIC_PATTERN =
-  /\b(health|healthy|fitness|fit|nutrition|nutritional|nutrient|nutrients|calorie|calories|macro|macros|carb|carbs|carbohydrate|carbohydrates|protein|fat|fats|fiber|fibre|meal|food|diet|exercise|workout|training|muscle|weight|bmi|hydration|water|sleep|vitamin|vitamins|mineral|minerals|body fat|steps|wellness|glucose|blood pressure|cholesterol|diabetes|fasting|intermittent|keto|vegan|vegetarian|gluten|lactose|supplement|protein shake|gym|cardio|steps|running|walking|walk|run|jog|cycling|cycle|yoga|meditation|stress|recovery|injury|pain|inflammation|dal|makhni|roti|tandoori|dosa|chole|paneer|chicken|fish|egg|eggs|meat|vegetables|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|ate|drank)\b/i;
+  /\b(health|healthy|fitness|fit|nutrition|nutritional|nutrient|nutrients|calorie|calories|macro|macros|carb|carbs|carbohydrate|carbohydrates|protein|fat|fats|fiber|fibre|meal|food|diet|exercise|workout|training|muscle|weight|bmi|hydration|water|sleep|vitamin|vitamins|mineral|minerals|body fat|steps|wellness|glucose|blood pressure|cholesterol|diabetes|fasting|intermittent|keto|vegan|vegetarian|gluten|lactose|supplement|multivitamin|tablet|capsule|pill|protein shake|gym|cardio|steps|running|walking|walk|run|jog|cycling|cycle|yoga|meditation|stress|recovery|injury|pain|inflammation|dal|makhni|roti|tandoori|dosa|chole|paneer|chicken|fish|egg|eggs|meat|vegetables|fruits|rice|bread|pasta|pizza|salad|soup|curry|milk|curd|yogurt|yoghurt|buttermilk|lassi|tea|coffee|juice|oats|banana|apple|ate|drank|took)\b/i;
 const GENERAL_ALLOWED_PATTERN =
   /\b(hi|hello|hey|hii|hiii|good morning|good afternoon|good evening|thanks|thank you|ok|okay|cool|great|nice|who are you|what can you do|help|my name is|i am|i'm)\b/i;
 const MEAL_LOG_PATTERN =
-  /\b(i had|i ate|i drank|ate|had|drank|for breakfast|for lunch|for dinner|for snack|my breakfast|my lunch|my dinner|my meal|today i had)\b/i;
+  /\b(i had|i ate|i drank|i took|ate|had|drank|took|for breakfast|for lunch|for dinner|for snack|my breakfast|my lunch|my dinner|my meal|today i had)\b/i;
 const CONTEXTUAL_FOLLOW_UP_PATTERN =
-  /\b(it|this|that|these|those|same|again|continue|continued|previous|earlier|before|last|above|here|there|also|too|them|they|one|ones|meal|dish|food|lunch|dinner|breakfast|snack|workout|exercise|sleep|water|macros|calories)\b/i;
+  /\b(it|this|that|these|those|same|again|continue|continued|previous|earlier|before|last|above|here|there|also|too|them|they)\b/i;
+const EXPLICIT_RECALL_PATTERN =
+  /\b(what did i|what all i|what have i|what i (ate|had|drank|consumed|eaten)|my (meals?|food|diet|intake|log|logs)|today('s| i)|show me|list my|recap|review)\b/i;
 const STORED_CONTEXT_PATTERN =
-  /\b(my|report|reports|record|records|medical|lab|labs|bloodwork|blood work|scan|test|tests|history|past|context|summary|condition|allergy|allergies|profile)\b/i;
+  /\b(report|reports|record|records|medical|lab|labs|bloodwork|blood work|scan|test|tests|history|past|context|summary|condition|allergy|allergies|profile)\b/i;
 const ABUSIVE_PATTERN =
   /\b(fuck|fucking|shit|bitch|asshole|bastard|mc|bc|madarchod|behenchod|chutiya|gandu|randi|harami|kamine|sala|haramkhor|idiot|stupid|dumb|moron|loser|kill|murder|rape|sex|porn|nude|naked|hack|scam|spam|jailbreak|ignore previous|act as|pretend you are|you are now|dan mode|dev mode|bypass|override instructions)\b/i;
 const DISALLOWED_ASSISTANT_TONE_PATTERN =
@@ -202,10 +204,34 @@ function messageNeedsConversationContext(message = "") {
     return false;
   }
 
+  // If the message is a clear standalone food/supplement log entry, it does NOT
+  // need conversation context even if it contains a pronoun like "it" or "one".
+  if (messageLooksLikeStandaloneFoodLog(normalized)) {
+    return false;
+  }
+
   return (
     CONTEXTUAL_FOLLOW_UP_PATTERN.test(normalized) ||
+    EXPLICIT_RECALL_PATTERN.test(normalized) ||
     STORED_CONTEXT_PATTERN.test(normalized)
   );
+}
+
+function messageLooksLikeStandaloneFoodLog(message = "") {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+
+  // Messages like "I had one multivitamin", "took potassium tablet",
+  // "100g paneer", "2 eggs" are standalone food/supplement entries.
+  // They should NOT pull in previous conversation context.
+  const isLog = messageLooksLikeMealLog(normalized) ||
+    messageLooksLikeQuantifiedHealthLog(normalized);
+  const isFoodOrSupplement = FOOD_ITEM_PATTERN.test(normalized) ||
+    SINGLE_NUTRIENT_PATTERN.test(normalized) ||
+    /\b(multivitamin|supplement|tablet|capsule|pill)\b/i.test(normalized);
+  const isRecall = EXPLICIT_RECALL_PATTERN.test(normalized);
+
+  return (isLog || isFoodOrSupplement) && !isRecall;
 }
 
 function shouldKeepReplyFocusedOnCurrentMessage(message = "") {
@@ -213,6 +239,11 @@ function shouldKeepReplyFocusedOnCurrentMessage(message = "") {
 
   if (!normalized) {
     return false;
+  }
+
+  // Standalone food/supplement logs should stay focused on current message
+  if (messageLooksLikeStandaloneFoodLog(normalized)) {
+    return true;
   }
 
   return (
