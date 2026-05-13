@@ -329,25 +329,31 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
             dishName = dishMatch[1].replace(/\*+/g, '').trim();
         }
 
+        // Strip lines that belong to exercise stats.
         const foodText = currentTurnText.replace(/^.*(?:burned|exercise minutes).*$/gim, "");
 
-        totalCalories = pickNumericValue(structuredValues.calories, extractFloatEstimate(foodText, [
+        // For calorie and macro extraction, also strip vitamin/mineral/supplement
+        // micronutrient lines so their numeric values (e.g. "Vitamin A: 750mcg")
+        // don't get falsely picked up as calories or macro grams.
+        const macroText = foodText
+            .replace(/^.*(?:vitamin\s*[a-z0-9]+|folate|folic acid|b12|b-12|key nutrients|supplement name)[:\s*_-].*$/gim, "");
+
+        totalCalories = pickNumericValue(structuredValues.calories, extractFloatEstimate(macroText, [
             /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*calories\**[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?/im,
             /(?:total calories|calories|kcal|cal)[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?/i,
             /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:kcal|calories|cal)\b/i,
-            /(\d{3,4}(?:\.\d+)?)\s*(?:total)?\s*(?:kcal|calories|cal)?/i,
         ])) ?? 0;
-        totalProtein = pickNumericValue(structuredValues.protein, extractFloatEstimate(foodText, [
+        totalProtein = pickNumericValue(structuredValues.protein, extractFloatEstimate(macroText, [
             /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*protein\**[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?/im,
             /(?:total protein|protein)[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?/i,
             /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?\s*protein/i,
         ])) ?? 0;
-        totalCarbs = pickNumericValue(structuredValues.carbs, extractFloatEstimate(foodText, [
+        totalCarbs = pickNumericValue(structuredValues.carbs, extractFloatEstimate(macroText, [
             /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*(?:carbs|carbohydrates|total carbohydrates)\**[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?/im,
             /(?:total carbs|carbs|total carbohydrates|carbohydrates)[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?/i,
             /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?\s*(?:carbs|carbohydrates|total carbohydrates)/i,
         ])) ?? 0;
-        totalFat = pickNumericValue(structuredValues.fat, extractFloatEstimate(foodText, [
+        totalFat = pickNumericValue(structuredValues.fat, extractFloatEstimate(macroText, [
             /(?:^|\n)\s*(?:[-*]|\d+\.)?\s*\**\s*(?:fat|total fat)\**[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?/im,
             /(?:total fat|fat|fats)[\s:*_-]*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?/i,
             /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:g|grams)?\s*(?:fat|fats|total fat)/i,
