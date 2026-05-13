@@ -11,11 +11,15 @@ const referralCodeRule = body("referralCode")
 const contactRules = [
   body("email")
     .optional()
+    .trim()
     .isEmail()
     .withMessage("Email must be valid"),
   body("phoneNumber")
     .optional()
-    .isMobilePhone("any")
+    .trim()
+    .isLength({ min: 7, max: 15 })
+    .withMessage("Phone number must be between 7 and 15 characters")
+    .matches(/^\+?[1-9]\d{6,14}$/)
     .withMessage("Phone number must be valid"),
   body().custom((value) => {
     if (!value.email && !value.phoneNumber) {
@@ -34,6 +38,7 @@ const requestOtpRules = [
   ...contactRules,
   body("name")
     .optional()
+    .trim()
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),
@@ -50,6 +55,7 @@ const verifyOtpRules = [
     .withMessage("OTP must contain only numbers"),
   body("name")
     .optional()
+    .trim()
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),
@@ -68,6 +74,7 @@ const googleLoginRules = [
     .withMessage("Firebase idToken is required"),
   body("name")
     .optional()
+    .trim()
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),
@@ -85,6 +92,7 @@ const phoneLoginRules = [
     .withMessage("mode must be either signup or login"),
   body("name")
     .optional()
+    .trim()
     .isString()
     .isLength({ min: 2, max: 60 })
     .withMessage("Name must be between 2 and 60 characters"),

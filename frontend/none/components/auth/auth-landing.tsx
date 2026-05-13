@@ -182,13 +182,18 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
           throw new Error("Phone verification could not start. Recaptcha container is missing.");
         }
 
+        // Validate phone number
+        if (!phoneNumber.trim()) {
+          throw new Error("Please enter a valid phone number.");
+        }
+
         if (!recaptchaVerifierRef.current) {
           recaptchaVerifierRef.current = createPhoneRecaptchaVerifier(recaptchaContainerRef.current);
         }
 
         confirmationResultRef.current = await signInWithPhoneNumber(
           getFirebaseAuth(),
-          phoneNumber,
+          phoneNumber.trim(),
           recaptchaVerifierRef.current,
         );
         setOtpRequested(true);
@@ -196,11 +201,16 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         return;
       }
 
-      const payload =
-        {
-          email,
-          ...(activeReferralCode ? { referralCode: activeReferralCode } : {}),
-        };
+      // Validate email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email.trim() || !emailRegex.test(email.trim())) {
+        throw new Error("Please enter a valid email address.");
+      }
+
+      const payload = {
+        email: email.trim(),
+        ...(activeReferralCode ? { referralCode: activeReferralCode } : {}),
+      };
 
       const response = await authApi.requestSignupOtp(payload);
 
@@ -228,7 +238,12 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
           throw new Error("Please request a phone verification code first.");
         }
 
-        const credential = await confirmationResultRef.current.confirm(otp);
+        // Validate OTP for phone (Firebase typically uses 6 digits)
+        if (!/^\d{6}$/.test(otp.trim())) {
+          throw new Error("Please enter a valid 6-digit verification code.");
+        }
+
+        const credential = await confirmationResultRef.current.confirm(otp.trim());
         const idToken = await credential.user.getIdToken();
         const response = await authApi.phoneLogin({
           idToken,
@@ -242,12 +257,16 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         return;
       }
 
-      const payload =
-        {
-          email,
-          otp,
-          ...(activeReferralCode ? { referralCode: activeReferralCode } : {}),
-        };
+      // Validate email OTP
+      if (!/^\d{4,8}$/.test(otp.trim())) {
+        throw new Error("Please enter a valid verification code (4-8 digits).");
+      }
+
+      const payload = {
+        email: email.trim(),
+        otp: otp.trim(),
+        ...(activeReferralCode ? { referralCode: activeReferralCode } : {}),
+      };
 
       const response = await authApi.verifySignupOtp(payload);
 
@@ -401,6 +420,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                     value={otp}
                     onChange={(event) => setOtp(event.target.value)}
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="Enter the code you received"
                     required
                   />

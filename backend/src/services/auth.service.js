@@ -417,7 +417,8 @@ async function verifyOtp(payload, purpose, meta = {}) {
   const db = getFirestore();
   const channel = getChannel(payload);
   const identifier = getIdentifier(payload);
-  const otpHash = hashOtp(identifier, payload.otp);
+  const otp = payload.otp.trim();
+  const otpHash = hashOtp(identifier, otp);
   const otpSnapshot = await db
     .collection(OtpCodeModel.collectionName)
     .doc(OtpCodeModel.createDocumentId(channel, identifier, purpose))
