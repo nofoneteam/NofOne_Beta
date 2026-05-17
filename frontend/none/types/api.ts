@@ -85,18 +85,18 @@ export interface RefreshSessionPayload {
 
 export interface UpsertHealthProfilePayload {
   name?: string | null;
-  age: number;
+  age?: number;
   gender?: string | null;
-  height: number;
-  weight: number;
+  height?: number;
+  weight?: number;
   targetWeight?: number | null;
   bmi?: number | null;
   bmiCategory?: string | null;
   location?: string | null;
   city?: string | null;
   ethnicityCuisine?: string | null;
-  activityLevel: HealthProfile["activityLevel"];
-  goal: HealthProfile["goal"];
+  activityLevel?: HealthProfile["activityLevel"];
+  goal?: HealthProfile["goal"];
   dietType?: string | null;
   diabetes?: HealthProfile["diabetes"];
   hypertension?: HealthProfile["hypertension"];

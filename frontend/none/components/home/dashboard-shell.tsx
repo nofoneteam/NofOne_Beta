@@ -29,6 +29,7 @@ import {
   Users,
   Target,
   Flame,
+  Info,
   Loader2,
   Download,
   MoonStar,
@@ -310,6 +311,12 @@ function FormattedAssistantText({
 
 function metricValue(summary: DashboardSummary | null, key: string) {
   return summary?.dailyGoals.metrics.find((metric) => metric.key === key) ?? null;
+}
+
+function estimateSleepCalories(hours: number, weightKg: number) {
+  const safeHours = Math.max(Number(hours) || 0, 0);
+  const safeWeight = Math.max(Number(weightKg) || 70, 1);
+  return Math.round(safeHours * safeWeight * 0.95);
 }
 
 function getNutritionLogStorageKey(dateIso: string) {
@@ -707,11 +714,6 @@ export function DashboardShell() {
         userApi.getMedicalNutritionInsight(token).catch(() => ({ data: { insight: null } })),
       ]);
 
-      if (!isProfileComplete(profileResponse.data)) {
-        router.replace("/onboarding");
-        return;
-      }
-
       setProfile(profileResponse.data);
       setMedicalReports(reportsResponse.data.reports);
       setChatPreferences(chatPreferencesResponse.data);
@@ -722,6 +724,12 @@ export function DashboardShell() {
       setProfileLoading(false);
     }
   }, [router, showErrorToast]);
+
+  useEffect(() => {
+    if (activeSection === "profile" && !profileLoading && (!profile || !isProfileComplete(profile))) {
+      router.replace("/onboarding");
+    }
+  }, [activeSection, profile, profileLoading, router]);
 
   const loadWeightTracker = useCallback(async (dateIso: string) => {
     const token = getStoredAccessToken();
@@ -853,7 +861,10 @@ export function DashboardShell() {
   const targetSleep = Math.max(1, Math.round(sleepMetric?.target ?? 8));
   const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
-  const remainingCalories = Math.round((caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories);
+  const totalSleepCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.sleepCalories ?? 0);
+  const remainingCalories = Math.round(
+    (caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories + totalSleepCalories
+  );
 
 
   const reportNutrientCurrent = useMemo(() => {
@@ -1026,12 +1037,18 @@ export function DashboardShell() {
   async function handleSleepUpdate(delta: number) {
     const token = getStoredAccessToken();
 
-    if (!token || !sleepMetric) {
+    if (!token || !sleepMetric || !dashboard) {
       return;
     }
 
     const previousSleep = sleepMetric.current;
     const nextSleep = Math.max(0, previousSleep + delta);
+    const currentWeight = Number(dashboard.weightTracker?.currentWeight) || 70;
+    const previousSleepCalories = Math.round(dashboard?.dailyGoals?.rawMetrics?.sleepCalories ?? 0);
+    const nextSleepCalories = estimateSleepCalories(nextSleep, currentWeight);
+    const rawFoodCalories = Math.round(dashboard?.dailyGoals?.rawMetrics?.calories ?? 0);
+    const rawExerciseCalories = Math.round(dashboard?.dailyGoals?.rawMetrics?.exerciseCalories ?? 0);
+    const nextNetCalories = Math.max(0, rawFoodCalories - rawExerciseCalories - nextSleepCalories);
 
     setErrorMessage(null);
     setDashboard((current) =>
@@ -1042,9 +1059,29 @@ export function DashboardShell() {
               ...current.dailyGoals,
               metrics: current.dailyGoals.metrics.map((metric) =>
                 metric.key === "sleepHours"
-                  ? { ...metric, current: nextSleep }
-                  : metric,
+                  ? {
+                      ...metric,
+                      current: nextSleep,
+                      progressPercent: Math.round(
+                        Math.min(nextSleep / Math.max(metric.target, 1), 1) * 100
+                      ),
+                    }
+                  : metric.key === "calories"
+                    ? {
+                        ...metric,
+                        current: nextNetCalories,
+                        progressPercent: Math.round(
+                          Math.min(nextNetCalories / Math.max(metric.target, 1), 1) * 100
+                        ),
+                      }
+                    : metric,
               ),
+              rawMetrics: current.dailyGoals.rawMetrics
+                ? {
+                    ...current.dailyGoals.rawMetrics,
+                    sleepCalories: nextSleepCalories,
+                  }
+                : current.dailyGoals.rawMetrics,
             },
           }
         : current,
@@ -1074,9 +1111,33 @@ export function DashboardShell() {
                 ...current.dailyGoals,
                 metrics: current.dailyGoals.metrics.map((metric) =>
                   metric.key === "sleepHours"
-                    ? { ...metric, current: previousSleep }
-                    : metric,
+                    ? {
+                        ...metric,
+                        current: previousSleep,
+                        progressPercent: Math.round(
+                          Math.min(previousSleep / Math.max(metric.target, 1), 1) * 100
+                        ),
+                      }
+                    : metric.key === "calories"
+                      ? {
+                          ...metric,
+                          current: Math.max(0, rawFoodCalories - rawExerciseCalories - previousSleepCalories),
+                          progressPercent: Math.round(
+                            Math.min(
+                              Math.max(0, rawFoodCalories - rawExerciseCalories - previousSleepCalories) /
+                                Math.max(metric.target, 1),
+                              1
+                            ) * 100
+                          ),
+                        }
+                      : metric,
                 ),
+                rawMetrics: current.dailyGoals.rawMetrics
+                  ? {
+                      ...current.dailyGoals.rawMetrics,
+                      sleepCalories: previousSleepCalories,
+                    }
+                  : current.dailyGoals.rawMetrics,
               },
             }
           : current,
@@ -1732,8 +1793,23 @@ export function DashboardShell() {
   }
 
   function handleSidebarSelect(sectionId: HomeSectionKey) {
+    if (sectionId === "profile" && !profileLoading && (!profile || !isProfileComplete(profile))) {
+      router.push("/onboarding");
+      setSidebarOpen(false);
+      return;
+    }
+
     router.push(HOME_SECTION_ROUTES[sectionId]);
     setSidebarOpen(false);
+  }
+
+  function openProfileExperience() {
+    if (!profileLoading && (!profile || !isProfileComplete(profile))) {
+      router.push("/onboarding");
+      return;
+    }
+
+    router.push(HOME_SECTION_ROUTES.profile);
   }
 
   function handleSpeechUnavailable(message: string) {
@@ -1840,7 +1916,7 @@ export function DashboardShell() {
 
                   <button
                     className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-[#edf5ee] text-[#000000] transition-colors hover:bg-[#e3efe5]"
-                    onClick={() => router.push(HOME_SECTION_ROUTES.profile)}
+                    onClick={openProfileExperience}
                     type="button"
                   >
                     <UserRound className="h-4 w-4" />
@@ -1880,7 +1956,7 @@ export function DashboardShell() {
 
                   <button
                     className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-[#edf5ee] text-[#000000] transition-colors hover:bg-[#e3efe5]"
-                    onClick={() => router.push(HOME_SECTION_ROUTES.profile)}
+                    onClick={openProfileExperience}
                     type="button"
                   >
                     <UserRound className="h-4 w-4" />
@@ -2015,6 +2091,7 @@ export function DashboardShell() {
                       current={Math.round(caloriesMetric?.current ?? 0)}
                       foodCalories={totalFoodCalories}
                       exerciseCalories={totalExerciseCalories}
+                      sleepCalories={totalSleepCalories}
                       loading={loading}
                       onOpenDetails={() => setNutritionSummaryOpen(true)}
                       remaining={remainingCalories}
@@ -2041,6 +2118,7 @@ export function DashboardShell() {
                     <SleepCard
                       current={currentSleep}
                       loading={loading}
+                      sleepCalories={totalSleepCalories}
                       target={targetSleep}
                       onDecrement={() => void handleSleepUpdate(-1)}
                       onIncrement={() => void handleSleepUpdate(1)}
@@ -2218,8 +2296,13 @@ export function DashboardShell() {
               carbsMetric={carbsMetric}
               proteinMetric={proteinMetric}
               fatMetric={fatMetric}
+              waterCurrent={currentWater}
+              waterTarget={targetWater}
+              sleepCurrent={currentSleep}
+              sleepTarget={targetSleep}
               foodCalories={totalFoodCalories}
               exerciseCalories={totalExerciseCalories}
+              sleepCalories={totalSleepCalories}
               remainingCalories={remainingCalories}
               onClose={() => setNutritionSummaryOpen(false)}
             />
@@ -2265,7 +2348,8 @@ function SidebarPanel({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-[#ecece7] px-5 py-5">
+      <div className="border-b border-[#ecece7] px-4 py-4">
+        <div className="flex items-center justify-between ">
         <Link
             href="/about"
             title="About Nofone"
@@ -2278,6 +2362,7 @@ function SidebarPanel({
             height={100}
             className="rounded-xl scale-150 ml-4"
           />
+         
           </Link>
         <button
           className="flex h-8 w-8 items-center justify-center rounded-full text-[#8d9399] transition-colors hover:bg-[#f3f3ee] lg:hidden"
@@ -2286,7 +2371,17 @@ function SidebarPanel({
         >
           <X className="h-4 w-4" />
         </button>
+        
+
       </div>
+      <div className="px-4 -py-4 -mt-4 "> 
+        <p className="text-sm font-semibold text-zinc-600 ">
+          Move Nourish Evolve
+        </p>
+      </div>
+      </div>
+      
+      
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="space-y-1">
@@ -2593,6 +2688,7 @@ function CaloriesCard({
   loading,
   onOpenDetails,
   remaining,
+  sleepCalories,
   target,
 }: {
   current: number;
@@ -2601,6 +2697,7 @@ function CaloriesCard({
   loading: boolean;
   onOpenDetails: () => void;
   remaining: number;
+  sleepCalories: number;
   target: number;
 }) {
   if (loading) {
@@ -2626,9 +2723,10 @@ function CaloriesCard({
         <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Calories</p>
       </div>
 
-      <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
+      <div className="mt-2 grid min-w-0 grid-cols-4 gap-1 sm:mt-3 sm:gap-2">
         <DashboardMiniStat label="Food" value={foodCalories} unit="" />
         <DashboardMiniStat label="Exercise" value={exerciseCalories} unit="" />
+        <DashboardMiniStat label="Sleep" value={sleepCalories} unit="" />
         <DashboardMiniStat highlight label="Remaining" value={remaining} unit="" />
       </div>
     </BaseCard>
@@ -2694,9 +2792,9 @@ function DashboardMiniStat({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-[8px] sm:rounded-[16px] bg-white/70 px-1 py-1 sm:px-3 sm:py-3">
-      <p className={cn("text-[9px] sm:text-[11px] text-[#667085]", highlight && "text-[#111111]")}>{label}</p>
-      <p className={cn("mt-0.5 text-[12px] sm:text-[16px] font-semibold text-[#111111]", highlight && "sm:text-[18px]")}>{value}{unit ? ` ${unit}` : ''}</p>
+    <div className="flex h-full min-w-0 flex-col items-center justify-center rounded-[8px] bg-white/70 px-1 py-1 text-center sm:rounded-[16px] sm:px-3 sm:py-3">
+      <p className={cn("w-full text-[9px] sm:text-[11px] text-[#667085]", highlight && "text-[#111111]")}>{label}</p>
+      <p className={cn("mt-0.5 w-full text-[12px] font-semibold text-[#111111] sm:text-[16px]", highlight && "sm:text-[18px]")}>{value}{unit ? ` ${unit}` : ''}</p>
     </div>
   );
 }
@@ -2936,11 +3034,16 @@ function WaterCard({
 
   return (
     <BaseCard className="animate-fade-up animation-delay-2 px-0 py-0 mt:p-4">
-      <div className="flex items-center gap-2">
-        <TinyIconCircle bg="bg-[#e7f4ff]" text="text-[#6bb0e7]">
-          <DropletIcon/>
-        </TinyIconCircle>
-        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Water</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <TinyIconCircle bg="bg-[#e7f4ff]" text="text-[#6bb0e7]">
+            <DropletIcon/>
+          </TinyIconCircle>
+          <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Water</p>
+        </div>
+        <InfoHint
+          text={`Water details are also logged in your detailed report. You should drink at least ${target} glasses of water in a day.`}
+        />
       </div>
 
       <div className="mt-2 sm:mt-3 text-center">
@@ -2977,12 +3080,14 @@ function SleepCard({
   loading,
   onDecrement,
   onIncrement,
+  sleepCalories,
   target,
 }: {
   current: number;
   loading: boolean;
   onDecrement: () => void;
   onIncrement: () => void;
+  sleepCalories: number;
   target: number;
 }) {
   if (loading) {
@@ -2996,11 +3101,16 @@ function SleepCard({
 
   return (
     <BaseCard className="animate-fade-up animation-delay-2 px-0 py-0 mt:p-4">
-      <div className="flex items-center gap-2">
-        <TinyIconCircle bg="bg-[#ede9fe]" text="text-[#6d28d9]">
-          <MoonStar />
-        </TinyIconCircle>
-        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Sleep</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <TinyIconCircle bg="bg-[#ede9fe]" text="text-[#6d28d9]">
+            <MoonStar />
+          </TinyIconCircle>
+          <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Sleep</p>
+        </div>
+        <InfoHint
+          text={`Sleep is logged in your detailed report, and net calories are reduced because sleeping burns energy too. Current logged sleep burn is about ${sleepCalories} calories.`}
+        />
       </div>
 
       <div className="mt-2 text-center sm:mt-3">
@@ -3114,6 +3224,28 @@ function ReportCard({
         ) : null}
       </div>
     </BaseCard>
+  );
+}
+
+function InfoHint({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        aria-label="More info"
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-[#d9dde3] text-[#7d848c] transition-colors hover:bg-[#f7f7f3]"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-7 z-20 w-56 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
+          {text}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -3538,13 +3670,18 @@ function ReportModal({
       const statW = (contentW - 16) / 3;
       const stats: [string, string][] = [
         ["Avg Calories", String(Math.round(currentSummary?.avgCalories ?? 0))],
+        ["Avg Water", `${currentSummary?.avgWaterIntake ?? 0} cups`],
+        ["Avg Sleep", `${currentSummary?.avgSleepHours ?? 0} hrs`],
         ["Goals Met", currentSummary?.goalsMet ?? "0/0"],
+        ["Sleep Burn", `${Math.round(currentSummary?.avgSleepCalories ?? 0)} cal`],
         ["Weight To Go", report.weightTracker.toGo != null ? `${report.weightTracker.toGo} kg` : "—"],
       ];
       stats.forEach(([label, value], i) => {
-        chip(margin + i * (statW + 8), y, statW, 52, label, value);
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        chip(margin + col * (statW + 8), y + row * 60, statW, 52, label, value);
       });
-      y += 68;
+      y += 128;
 
       // Date range sub-label
       doc.setFont("helvetica", "normal");
@@ -3597,7 +3734,7 @@ function ReportModal({
       // ── Daily Entries ─────────────────────────────────────────────────────
       sectionTitle("Daily Entries");
       for (const entry of report.entries) {
-        const rowCount = Math.ceil(9 / 3);
+        const rowCount = Math.ceil(10 / 3);
         const entryH = 24 + rowCount * 46 + 16;
         ensurePage(entryH + 12);
 
@@ -3619,6 +3756,7 @@ function ReportModal({
           ["Fat", `${entry.metrics.fat} g`],
           ["Water", `${entry.metrics.waterIntake} cups`],
           ["Sleep", `${entry.metrics.sleepHours} hrs`],
+          ["Sleep Burn", `${entry.metrics.sleepCalories} cal`],
           ["Exercise", `${entry.metrics.exerciseMinutes} min`],
           ["Burn", `${entry.metrics.exerciseCalories} cal`],
           ["Weight", entry.metrics.weight != null ? `${entry.metrics.weight} kg` : "—"],
@@ -3784,7 +3922,12 @@ function ReportModal({
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-center">
                         <ReportStatCard label="Avg Calories" value={String(Math.round(currentSummary?.avgCalories ?? 0))} />
+                        <ReportStatCard label="Avg Water" value={`${currentSummary?.avgWaterIntake ?? 0} cups`} />
+                        <ReportStatCard label="Avg Sleep" value={`${currentSummary?.avgSleepHours ?? 0} hrs`} />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-center">
                         <ReportStatCard label="Goals Met" value={currentSummary?.goalsMet ?? "0/0"} />
+                        <ReportStatCard label="Sleep Burn" value={`${Math.round(currentSummary?.avgSleepCalories ?? 0)} cal`} />
                         <ReportStatCard label="Weight To Go" value={report.weightTracker.toGo != null ? `${report.weightTracker.toGo} kg` : "—"} />
                       </div>
                     </div>
@@ -3831,6 +3974,7 @@ function ReportModal({
                             <ReportEntryChip label="Fat" value={`${entry.metrics.fat} g`} />
                             <ReportEntryChip label="Water" value={`${entry.metrics.waterIntake} cups`} />
                             <ReportEntryChip label="Sleep" value={`${entry.metrics.sleepHours} hrs`} />
+                            <ReportEntryChip label="Sleep Burn" value={`${entry.metrics.sleepCalories} calories`} />
                             <ReportEntryChip label="Exercise" value={`${entry.metrics.exerciseMinutes} min`} />
                             <ReportEntryChip label="Exercise Burn" value={`${entry.metrics.exerciseCalories} calories`} />
                             <ReportEntryChip label="Weight" value={entry.metrics.weight != null ? `${entry.metrics.weight} kg` : "—"} />
@@ -4254,7 +4398,14 @@ function NutritionModal({
     }
   };
 
-  const defaultContextName = contextName === "Please analyze this image for meal composition, calories, macros, or fitness relevance only." ? "Image Analysis" : contextName;
+  const defaultContextName =
+    contextName &&
+    [
+      "Please analyze this image for meal composition, calories, macros, or fitness relevance only.",
+      "Please analyze this image for food, supplements, tablet labels, calories, macros, micronutrients, or fitness relevance only. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took.",
+    ].includes(contextName)
+      ? "Image Analysis"
+      : contextName;
   const [localParsed, setLocalParsed] = useState(parsed);
   const [name, setName] = useState(loggedItem?.name ?? localParsed.dishName ?? defaultContextName ?? "Logged Item");
   const [cal, setCal] = useState(loggedItem?.calories ?? localParsed.totals.calories);
@@ -4308,7 +4459,7 @@ function NutritionModal({
       } else {
         toast({
            title: "Refetch failed",
-           description: "Could not parse valid nutrition data for that query.",
+           description: "Could not extract nutrition data. Try a clearer image or type what you ate or took.",
            variant: "error"
         });
       }
@@ -4389,7 +4540,31 @@ function NutritionModal({
                </div>
              ) : null}
 
-             <div className="space-y-3 p-3 rounded-[16px] bg-[#f7f7f3] border border-[#ecece7]">
+             
+
+             <label className="block">
+               <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider mb-1">Name</span>
+               <input
+                 type="text"
+                 value={name}
+                 onChange={(e) => setName(e.target.value)}
+                 className="w-full rounded-[14px] border border-[#ecece7] bg-[#fcfcf9] px-4 py-3 text-[15px] text-[#111111] font-medium outline-none transition-colors focus:border-green-600"
+               />
+             </label>
+          </div>
+
+          <div className="rounded-[16px] bg-[#f7f7f3] px-3 py-3 text-[12px] leading-5 text-[#333538] whitespace-pre-wrap">
+            {localParsed.originalText}
+          </div>
+          
+          <button 
+             onClick={() => setShowDetails(true)} 
+             className="w-full flex items-center justify-between rounded-[14px] border border-[#ecece7] bg-white px-4 py-3.5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-[#f7f7f3]"
+          >
+             View Detailed Analysis
+             <span className="text-[#8a9198]">→</span>
+          </button>
+          <div className="space-y-3 p-3 rounded-[16px] bg-[#f7f7f3] border border-[#ecece7]">
                <label className="block">
                  <div className="mb-3 flex items-center justify-between gap-3">
                    <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider">Query</span>
@@ -4426,29 +4601,6 @@ function NutritionModal({
                  </button>
                </label>
              </div>
-
-             <label className="block">
-               <span className="block text-[12px] font-semibold text-[#8a9198] uppercase tracking-wider mb-1">Name</span>
-               <input
-                 type="text"
-                 value={name}
-                 onChange={(e) => setName(e.target.value)}
-                 className="w-full rounded-[14px] border border-[#ecece7] bg-[#fcfcf9] px-4 py-3 text-[15px] text-[#111111] font-medium outline-none transition-colors focus:border-green-600"
-               />
-             </label>
-          </div>
-
-          <div className="rounded-[16px] bg-[#f7f7f3] px-3 py-3 text-[12px] leading-5 text-[#333538] whitespace-pre-wrap">
-            {localParsed.originalText}
-          </div>
-          
-          <button 
-             onClick={() => setShowDetails(true)} 
-             className="w-full flex items-center justify-between rounded-[14px] border border-[#ecece7] bg-white px-4 py-3.5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-[#f7f7f3]"
-          >
-             View Detailed Analysis
-             <span className="text-[#8a9198]">→</span>
-          </button>
 
           <div className="space-y-3">
            <p className="text-[14px] font-semibold text-[#111111]">Edit Macros</p>
@@ -4629,8 +4781,13 @@ function DailyNutritionDetailsModal({
   carbsMetric,
   proteinMetric,
   fatMetric,
+  waterCurrent,
+  waterTarget,
+  sleepCurrent,
+  sleepTarget,
   foodCalories,
   exerciseCalories,
+  sleepCalories,
   remainingCalories,
   onClose,
 }: {
@@ -4640,8 +4797,13 @@ function DailyNutritionDetailsModal({
   carbsMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
   proteinMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
   fatMetric: DashboardSummary["dailyGoals"]["metrics"][number] | null;
+  waterCurrent: number;
+  waterTarget: number;
+  sleepCurrent: number;
+  sleepTarget: number;
   foodCalories: number;
   exerciseCalories: number;
+  sleepCalories: number;
   remainingCalories: number;
   onClose: () => void;
 }) {
@@ -4720,9 +4882,10 @@ function DailyNutritionDetailsModal({
               label="Calories"
               target={Math.round(caloriesMetric?.target ?? 0)}
             />
-            <div className="grid grid-cols-3 gap-2 self-center">
+            <div className="grid grid-cols-4 gap-2 self-center">
               <DashboardMiniStat label="Food" value={foodCalories} />
               <DashboardMiniStat label="Exercise" value={exerciseCalories} />
+              <DashboardMiniStat label="Sleep" value={sleepCalories} />
               <DashboardMiniStat highlight label="Remaining" value={remainingCalories} />
             </div>
           </div>
@@ -4738,6 +4901,19 @@ function DailyNutritionDetailsModal({
               <CircularMetric accent="#7c3aed" current={Math.round(carbsMetric?.current ?? 0)} label="Carbs (g)" target={Math.round(carbsMetric?.target ?? 0)} />
               <CircularMetric accent="#0f766e" current={Math.round(proteinMetric?.current ?? 0)} label="Protein (g)" target={Math.round(proteinMetric?.target ?? 0)} />
               <CircularMetric accent="#d97706" current={Math.round(fatMetric?.current ?? 0)} label="Fat (g)" target={Math.round(fatMetric?.target ?? 0)} />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[22px] bg-[#f7f9fd] p-4">
+            <div className="flex items-center gap-2">
+              <TinyIconCircle bg="bg-[#e7f4ff]" text="text-[#6bb0e7]">
+                <DropletIcon />
+              </TinyIconCircle>
+              <p className="text-[14px] font-semibold text-[#111111]">Hydration & Sleep</p>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <CircularMetric accent="#0ea5e9" current={waterCurrent} label="Water (cups)" target={waterTarget} />
+              <CircularMetric accent="#8b5cf6" current={sleepCurrent} label="Sleep (hrs)" target={sleepTarget} />
             </div>
           </div>
 

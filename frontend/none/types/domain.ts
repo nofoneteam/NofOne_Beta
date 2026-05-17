@@ -301,6 +301,7 @@ export interface DailyGoalsSummary {
   rawMetrics?: {
     calories: number;
     exerciseCalories: number;
+    sleepCalories: number;
   };
 }
 
@@ -325,6 +326,9 @@ export interface MacroAverage {
 
 export interface WeeklySummary {
   avgCalories: number;
+  avgWaterIntake: number;
+  avgSleepHours: number;
+  avgSleepCalories: number;
   kgLost: number;
   goalsMet: string;
   calorieIntake: Array<{
@@ -368,6 +372,7 @@ export interface ProgressReportEntry {
     fat: number;
     waterIntake: number;
     sleepHours: number;
+    sleepCalories: number;
     exerciseMinutes: number;
     exerciseCalories: number;
     weight: number | null;

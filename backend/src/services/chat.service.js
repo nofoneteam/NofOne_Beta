@@ -167,7 +167,7 @@ async function getMessagesByDate(userId, dateString) {
 async function handleChatTurn(userId, payload) {
   const normalizedUserMessage =
     payload.message ||
-    "Please analyze this image for meal composition, calories, macros, or fitness relevance only.";
+    "Please analyze this image for food, supplements, tablet labels, calories, macros, micronutrients, or fitness relevance only. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took.";
   const chatPreferences = await getUserChatPreferences(userId);
   const needsContextForThisTurn =
     payload.type === "image" || messageNeedsConversationContext(normalizedUserMessage);
@@ -343,7 +343,9 @@ async function updateChatTurn(userId, oldAssistantId, payload) {
   const oldAssistantMsg = allMessages[assistantIdx];
   const oldUserMsg = assistantIdx > 0 ? allMessages[assistantIdx - 1] : null;
   
-  const normalizedUserMessage = payload.message || "Please analyze this image for meal composition, calories, macros, or fitness relevance only.";
+  const normalizedUserMessage =
+    payload.message ||
+    "Please analyze this image for food, supplements, tablet labels, calories, macros, micronutrients, or fitness relevance only. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took.";
   const previousHistory = allMessages.slice(0, Math.max(0, assistantIdx - 1));
 
   if (payload.removeImage === "true" || payload.removeImage === true) {

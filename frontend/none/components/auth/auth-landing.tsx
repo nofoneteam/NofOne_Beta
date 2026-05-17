@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
-import { signInWithPhoneNumber /* , signInWithPopup */ } from "firebase/auth";
-import { ChevronRight, Dumbbell, Heart, Salad, TrendingUp } from "lucide-react";
+import { signInWithPhoneNumber, signInWithPopup } from "firebase/auth";
+import { ChevronRight, Dumbbell, Salad, TrendingUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,12 +16,11 @@ import { Label } from "@/components/ui/label";
 import { authApi, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
 import { getStoredAccessToken, persistAccessToken } from "@/lib/auth/session";
 import {
-  /* createGoogleProvider, */
+  createGoogleProvider,
   createPhoneRecaptchaVerifier,
   getFirebaseAuth,
   isFirebaseClientConfigured,
 } from "@/lib/firebase/client";
-import { cn } from "@/lib/utils";
 import { PhoneNumberInput } from "./phone-number-input";
 
 type OtpMethod = "email" | "phone";
@@ -132,7 +131,10 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
     setActiveReferralCode(null);
   }
 
-  /*
+  function resolvePostAuthRoute(onboarded: boolean | undefined) {
+    return onboarded ? "/home" : "/welcome";
+  }
+
   async function handleGoogleAuth() {
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -155,14 +157,13 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
 
       persistAccessToken(response.data.accessToken);
       clearStoredReferralCode();
-      router.push("/home");
+      router.push(resolvePostAuthRoute(response.data.user?.onboarded));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to continue with Google");
     } finally {
       setIsSubmitting(false);
     }
   }
-  */
 
   async function handleRequestOtp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -253,7 +254,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
         persistAccessToken(response.data.accessToken);
         clearStoredReferralCode();
         confirmationResultRef.current = null;
-        router.push("/home");
+        router.push(resolvePostAuthRoute(response.data.user?.onboarded));
         return;
       }
 
@@ -272,7 +273,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
 
       persistAccessToken(response.data.accessToken);
       clearStoredReferralCode();
-      router.push("/home");
+      router.push(resolvePostAuthRoute(response.data.user?.onboarded));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to verify OTP");
     } finally {
@@ -323,7 +324,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
-              {/*
               <button
                 type="button"
                 onClick={() => {
@@ -339,7 +339,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                     : "Continue with Google"}
                 </span>
               </button>
-              */}
               <div className="grid grid-cols-2 gap-3">
                 {/*
                 <button
@@ -553,7 +552,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
   );
 }
 
-/*
 function GoogleIcon() {
   return (
     <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
@@ -576,4 +574,3 @@ function GoogleIcon() {
     </svg>
   );
 }
-*/

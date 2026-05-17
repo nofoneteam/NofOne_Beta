@@ -12,6 +12,17 @@ function getUserContextCacheKey(userId) {
   return `${env.redis.keyPrefix}:chat:user-context:${userId}`;
 }
 
+function hasCompleteProfile(profile) {
+  return Boolean(
+    profile &&
+      profile.age != null &&
+      profile.height != null &&
+      profile.weight != null &&
+      profile.activityLevel &&
+      profile.goal
+  );
+}
+
 function compactProfile(profile, user) {
   if (!profile && !user) {
     return "";
@@ -21,6 +32,17 @@ function compactProfile(profile, user) {
 
   if (user?.name) {
     parts.push(`name=${user.name}`);
+  }
+
+  if (!hasCompleteProfile(profile)) {
+    if (user?.name) {
+      parts.push(`name=${user.name}`);
+    }
+
+    parts.push("ageRange=20-24");
+    parts.push("goal=lose_weight");
+
+    return `Profile: ${parts.join(", ")}`;
   }
 
   if (profile?.height != null) {

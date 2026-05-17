@@ -100,9 +100,12 @@ function buildUserPrompt(payload, memoryBlock = "") {
     sections.push(
       [
         "The user shared an image for health-focused analysis.",
-        `User request: ${payload.message || "Analyze this image for meal, calories, macros, ingredients, or fitness relevance only."}`,
+        `User request: ${
+          payload.message ||
+          "Analyze this image for food, supplements, tablet labels, calories, macros, micronutrients, ingredients, or fitness relevance only. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took."
+        }`,
         `Image URL: ${payload.imageUrl}`,
-        "Use the image-analysis tool to analyze the image for health, nutrition, macros, meal composition, or fitness relevance.",
+        "Use the image-analysis tool to analyze the image for health, nutrition, supplements, tablet labels, macros, micronutrients, meal composition, or fitness relevance. If the label or meal is unreadable, ask for a clearer image or a typed entry instead of guessing.",
       ].join("\n")
     );
   } else {
@@ -190,6 +193,9 @@ CONSISTENCY RULES:
 - Total fat MUST equal Saturated Fat + Trans Fat + Polyunsaturated Fat + Monounsaturated Fat + Other Fat.
 - Added Sugars must never exceed Sugar.
 - If a value is truly negligible, write 0 in the same format.
+- If the image shows a supplement, vitamin, mineral, capsule strip, or tablet bottle/box, treat it as a valid nutrition log item.
+- For supplement images, you may use "Supplement Name" instead of "Dish Name", but still include the same structured nutrient lines so the app can log micronutrients.
+- Use the visible label when possible. If the exact amounts are unreadable or the image is blurry, do not invent label values. Ask for a clearer image or ask the user to type what they ate or took.
 - After the structured nutrition block, provide a brief health-focused explanation of what is visible and why these estimates were chosen.`;
 
   const completion = await groq.chat.completions.create({
@@ -199,7 +205,7 @@ CONSISTENCY RULES:
       {
         role: "system",
         content:
-          "You are a strict health and fitness image analyst. Identify all food items, meals, or ingredients visible in the image and provide precise nutritional estimates. Only describe health-relevant details such as food items, meals, ingredients, calorie estimates, macro estimates, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis. Before responding, verify the arithmetic consistency of every total against its subcomponents." + macroFormatInstruction,
+          "You are a strict health and fitness image analyst. Identify visible food items, drinks, supplements, vitamin/mineral tablet labels, meals, or ingredients and provide precise nutritional estimates. Only describe health-relevant details such as food items, supplement labels, calorie estimates, macro estimates, micronutrient amounts, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis. If the image is too unclear to read the meal or supplement label, ask for a clearer image or ask the user to type what they ate or took instead of guessing. Before responding, verify the arithmetic consistency of every total against its subcomponents." + macroFormatInstruction,
       },
       {
         role: "user",
@@ -208,7 +214,7 @@ CONSISTENCY RULES:
             type: "text",
             text:
               (payload.message ||
-              "Analyze this image for food items, meal composition, and provide the nutritional breakdown including calories, protein, carbs, and fat.") + macroFormatInstruction,
+              "Analyze this image for food items or supplement labels and provide the nutritional breakdown including calories, macros, and micronutrients. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took.") + macroFormatInstruction,
           },
           {
             type: "image_url",

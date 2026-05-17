@@ -41,7 +41,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "extract_health_image_details",
       description:
-        "Analyze a public image URL only for health, nutrition, food, calories, macros, ingredients, exercise, or fitness-relevant details.",
+        "Analyze a public image URL only for health, nutrition, food, supplement labels, tablet/capsule nutrients, calories, macros, ingredients, exercise, or fitness-relevant details.",
       inputSchema: {
         type: "object",
         properties: {
@@ -53,7 +53,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           focus: {
             type: "string",
             description:
-              "Optional health-focused instruction such as meal analysis, calorie estimate, macros, or fitness relevance.",
+              "Optional health-focused instruction such as meal analysis, supplement label extraction, calorie estimate, macros, micronutrients, or fitness relevance.",
           },
         },
         required: ["imageUrl"],
@@ -83,7 +83,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       {
         role: "system",
         content:
-          "You are a strict health and fitness image analyst. Only describe health-relevant or nutrition-relevant details such as food items, meals, ingredients, calorie estimates, macro estimates, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis.",
+          "You are a strict health and fitness image analyst. Only describe health-relevant or nutrition-relevant details such as food items, meals, supplement labels, vitamins, minerals, calorie estimates, macro estimates, micronutrient amounts, hydration cues, exercise context, body posture, or fitness equipment. If the image is unrelated to health or fitness, say so clearly and refuse unrelated analysis. If the image is too unclear to read the meal or supplement label, ask for a clearer image or ask the user to type what they ate or took instead of guessing.",
       },
       {
         role: "user",
@@ -92,7 +92,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             type: "text",
             text:
               focus ||
-              "Analyze this image only for health, nutrition, macros, meal composition, or fitness relevance.",
+              "Analyze this image only for health, nutrition, supplements, tablet labels, macros, micronutrients, meal composition, or fitness relevance. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took.",
           },
           {
             type: "image_url",

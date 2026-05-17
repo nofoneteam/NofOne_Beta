@@ -239,13 +239,20 @@ function calculateCompletion(current, target) {
   return Math.min(current / target, 1);
 }
 
-function buildDailyGoals(log, goals) {
+function buildDailyGoals(log, goals, profile = {}) {
+  const sleepCalories = estimateSleepCalories(
+    log?.sleepHours ?? 0,
+    Number(log?.weight) || Number(profile?.weight) || 70
+  );
   const metrics = [
     {
       key: "calories",
       label: "Calories",
       unit: "Calories",
-      current: Math.max(round((log?.calories ?? 0) - (log?.exerciseCalories ?? 0), 0), 0),
+      current: Math.max(
+        round((log?.calories ?? 0) - (log?.exerciseCalories ?? 0) - sleepCalories, 0),
+        0
+      ),
       target: goals.calories,
     },
     {
@@ -310,6 +317,7 @@ function buildDailyGoals(log, goals) {
     rawMetrics: {
       calories: round(log?.calories ?? 0, 0),
       exerciseCalories: round(log?.exerciseCalories ?? 0, 0),
+      sleepCalories,
     },
   };
 }
@@ -360,14 +368,22 @@ function average(values) {
   return filteredValues.reduce((sum, value) => sum + value, 0) / filteredValues.length;
 }
 
-function getGoalsMetCount(logs, goals) {
+function estimateSleepCalories(hours, weightKg) {
+  const safeHours = Math.max(Number(hours) || 0, 0);
+  const safeWeight = Math.max(Number(weightKg) || 70, 1);
+
+  // Sleep still expends energy. 0.95 MET is a practical baseline estimate.
+  return round(safeHours * safeWeight * 0.95, 0);
+}
+
+function getGoalsMetCount(logs, goals, profile = {}) {
   return logs.reduce((count, log) => {
-    const completion = buildDailyGoals(log, goals).completionPercent;
+    const completion = buildDailyGoals(log, goals, profile).completionPercent;
     return count + (completion >= 100 ? 1 : 0);
   }, 0);
 }
 
-function buildWeeklySummary(logs, goals) {
+function buildWeeklySummary(logs, goals, profile = {}) {
   const weightedLogs = logs.filter(
     (log) => log.weight != null && Number.isFinite(Number(log.weight))
   );
@@ -376,11 +392,24 @@ function buildWeeklySummary(logs, goals) {
 
   return {
     avgCalories: round(average(logs.map((log) => Number(log.calories) || 0)), 0),
+    avgWaterIntake: round(average(logs.map((log) => Number(log.waterIntake) || 0)), 1),
+    avgSleepHours: round(average(logs.map((log) => Number(log.sleepHours) || 0)), 1),
+    avgSleepCalories: round(
+      average(
+        logs.map((log) =>
+          estimateSleepCalories(
+            log?.sleepHours ?? 0,
+            Number(log?.weight) || Number(profile?.weight) || 70
+          )
+        )
+      ),
+      0
+    ),
     kgLost:
       Number.isFinite(earliestWeight) && Number.isFinite(latestWeight)
         ? round(earliestWeight - latestWeight, 1)
         : 0,
-    goalsMet: `${getGoalsMetCount(logs, goals)}/${logs.length || 7}`,
+    goalsMet: `${getGoalsMetCount(logs, goals, profile)}/${logs.length || 7}`,
     calorieIntake: logs.map((log) => ({
       date: toIsoDate(log.date),
       calories: round(Number(log.calories) || 0, 0),
@@ -403,7 +432,7 @@ function buildWeeklySummary(logs, goals) {
 }
 
 function buildWeeklyReport(logs, goals, profile) {
-  const summary = buildWeeklySummary(logs, goals);
+  const summary = buildWeeklySummary(logs, goals, profile);
   const latestLog = logs[logs.length - 1] || null;
   const highlights = [];
 
@@ -423,6 +452,18 @@ function buildWeeklyReport(logs, goals, profile) {
 
   if ((latestLog?.protein || 0) < goals.protein) {
     highlights.push("Protein intake still has room to improve.");
+  }
+
+  if (summary.avgWaterIntake >= goals.waterIntake) {
+    highlights.push("Your hydration average met the daily water goal.");
+  } else {
+    highlights.push("Hydration can improve to consistently hit your daily water goal.");
+  }
+
+  if (summary.avgSleepHours >= goals.sleepHours) {
+    highlights.push("Your sleep average supported recovery through the week.");
+  } else {
+    highlights.push("Sleep duration was below the daily target on average this week.");
   }
 
   return {
@@ -448,10 +489,10 @@ function buildPeriodMetadata(period, dates) {
   };
 }
 
-function buildDetailedDailyEntries(logs, goals) {
+function buildDetailedDailyEntries(logs, goals, profile = {}) {
   return logs.map((log) => ({
     date: toIsoDate(log.date),
-    goals: buildDailyGoals(log, goals),
+    goals: buildDailyGoals(log, goals, profile),
     metrics: {
       calories: round(Number(log.calories) || 0, 0),
       protein: round(Number(log.protein) || 0, 0),
@@ -459,6 +500,10 @@ function buildDetailedDailyEntries(logs, goals) {
       fat: round(Number(log.fat) || 0, 0),
       waterIntake: round(Number(log.waterIntake) || 0, 0),
       sleepHours: round(Number(log.sleepHours) || 0, 1),
+      sleepCalories: estimateSleepCalories(
+        log?.sleepHours ?? 0,
+        Number(log?.weight) || Number(profile?.weight) || 70
+      ),
       exerciseMinutes: round(Number(log.exerciseMinutes) || 0, 0),
       exerciseCalories: round(Number(log.exerciseCalories) || 0, 0),
       weight: log.weight != null ? round(Number(log.weight), 1) : null,
@@ -485,11 +530,11 @@ async function buildProgressReport(userId, options = {}) {
 
   return {
     metadata: buildPeriodMetadata(period, dates),
-    dailyGoals: buildDailyGoals(currentLog, goals),
+    dailyGoals: buildDailyGoals(currentLog, goals, profile || {}),
     weightTracker: buildWeightTracker(logs, profile || {}),
-    summary: buildWeeklySummary(logs, goals),
+    summary: buildWeeklySummary(logs, goals, profile || {}),
     report: buildWeeklyReport(logs, goals, profile || {}),
-    entries: buildDetailedDailyEntries(logs, goals),
+    entries: buildDetailedDailyEntries(logs, goals, profile || {}),
   };
 }
 
