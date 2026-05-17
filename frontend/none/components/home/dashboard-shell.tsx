@@ -3042,6 +3042,7 @@ function WaterCard({
           <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Water</p>
         </div>
         <InfoHint
+          align="start"
           text={`Water details are also logged in your detailed report. You should drink at least ${target} glasses of water in a day.`}
         />
       </div>
@@ -3109,6 +3110,7 @@ function SleepCard({
           <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Sleep</p>
         </div>
         <InfoHint
+          align="end"
           text={`Sleep is logged in your detailed report, and net calories are reduced because sleeping burns energy too. Current logged sleep burn is about ${sleepCalories} calories.`}
         />
       </div>
@@ -3227,7 +3229,13 @@ function ReportCard({
   );
 }
 
-function InfoHint({ text }: { text: string }) {
+function InfoHint({
+  align = "end",
+  text,
+}: {
+  align?: "start" | "end";
+  text: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -3241,7 +3249,12 @@ function InfoHint({ text }: { text: string }) {
         <Info className="h-3.5 w-3.5" />
       </button>
       {open ? (
-        <div className="absolute right-0 top-7 z-20 w-56 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
+        <div
+          className={cn(
+            "absolute top-7 z-20 w-44 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)] sm:w-56",
+            align === "start" ? "left-0" : "right-0",
+          )}
+        >
           {text}
         </div>
       ) : null}
