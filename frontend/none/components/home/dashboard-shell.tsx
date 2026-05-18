@@ -3111,7 +3111,7 @@ function SleepCard({
         </div>
         <InfoHint
           align="end"
-          text={`Sleep is logged in your detailed report, and net calories are reduced because sleeping burns energy too. Current logged sleep burn is about ${sleepCalories} calories.`}
+          text={`Net calories are reduced because sleeping burns energy too. Current logged sleep burn is about ${sleepCalories} calories.`}
         />
       </div>
 
@@ -3251,8 +3251,8 @@ function InfoHint({
       {open ? (
         <div
           className={cn(
-            "absolute top-7 z-20 w-44 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)] sm:w-56",
-            align === "start" ? "left-0" : "right-0",
+            "absolute top-7 z-20 w-44 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)] md:w-56",
+            align === "start" ? "right-0" : "right-0",
           )}
         >
           {text}
