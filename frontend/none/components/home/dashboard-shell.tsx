@@ -573,6 +573,7 @@ export function DashboardShell() {
   const [selectedMessageContext, setSelectedMessageContext] = useState<string | undefined>(undefined);
   const [loggedNutritionItems, setLoggedNutritionItems] = useState<Record<string, LoggedNutritionItem>>({});
   const [nutritionSummaryOpen, setNutritionSummaryOpen] = useState(false);
+  const [nutritionProfileModalOpen, setNutritionProfileModalOpen] = useState(false);
   const [openLoggedEntryMenuId, setOpenLoggedEntryMenuId] = useState<string | null>(null);
   const [deletingLoggedItemId, setDeletingLoggedItemId] = useState<string | null>(null);
   const [analyticsTarget, setAnalyticsTarget] = useState<{
@@ -1792,6 +1793,15 @@ export function DashboardShell() {
     await loadDashboard(selectedIsoDate);
   }
 
+  function handleNutritionDetailsClick(openDetails: () => void) {
+    if (!profileLoading && (!profile || !isProfileComplete(profile))) {
+      setNutritionProfileModalOpen(true);
+      return;
+    }
+
+    openDetails();
+  }
+
   function handleSidebarSelect(sectionId: HomeSectionKey) {
     if (sectionId === "profile" && !profileLoading && (!profile || !isProfileComplete(profile))) {
       router.push("/onboarding");
@@ -2093,7 +2103,7 @@ export function DashboardShell() {
                       exerciseCalories={totalExerciseCalories}
                       sleepCalories={totalSleepCalories}
                       loading={loading}
-                      onOpenDetails={() => setNutritionSummaryOpen(true)}
+                      onOpenDetails={() => handleNutritionDetailsClick(() => setNutritionSummaryOpen(true))}
                       remaining={remainingCalories}
                       target={Math.round(caloriesMetric?.target ?? 0)}
                     />
@@ -2102,7 +2112,7 @@ export function DashboardShell() {
                       carbs={carbsMetric}
                       fat={fatMetric}
                       loading={loading}
-                      onOpenDetails={() => setNutritionSummaryOpen(true)}
+                      onOpenDetails={() => handleNutritionDetailsClick(() => setNutritionSummaryOpen(true))}
                       protein={proteinMetric}
                     />
                   </div>
@@ -2306,6 +2316,49 @@ export function DashboardShell() {
               remainingCalories={remainingCalories}
               onClose={() => setNutritionSummaryOpen(false)}
             />
+          ) : null}
+
+          {nutritionProfileModalOpen ? (
+            <div className="absolute inset-0 z-[90] flex items-center justify-center bg-[#1f2937]/40 px-4 py-6 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-[30px] border border-[#e5e7eb] bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[18px] font-semibold text-[#111111]">Complete your health profile</p>
+                    <p className="mt-3 text-[14px] leading-6 text-[#4b5563]">
+                      Create your health profile before accessing the nutrition breakdown. This helps Nofone personalize your calorie and macro targets.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full p-2 text-[#6b7280] transition hover:bg-[#f3f4f6]"
+                    onClick={() => setNutritionProfileModalOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  <Button
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => setNutritionProfileModalOpen(false)}
+                    type="button"
+                  >
+                    Maybe later
+                  </Button>
+                  <Button
+                    className="w-full sm:w-auto"
+                    onClick={() => {
+                      setNutritionProfileModalOpen(false);
+                      router.push("/onboarding");
+                    }}
+                    type="button"
+                  >
+                    Create profile
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {reportFocusModalOpen && medicalNutritionInsight ? (
