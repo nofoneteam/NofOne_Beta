@@ -131,8 +131,8 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
     setActiveReferralCode(null);
   }
 
-  function resolvePostAuthRoute(onboarded: boolean | undefined) {
-    return onboarded ? "/home" : "/welcome";
+  function resolvePostAuthRoute(onboarded?: boolean | null) {
+    return "/home";
   }
 
   async function handleGoogleAuth() {
@@ -295,10 +295,10 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                   height={125}
                   className="rounded-2xl scale-150"
                 />
-                {/* <div className="-mt-6">
-                  <p className="text-base font-semibold text-green-950">Nofone</p>
-                  <p className="text-sm font-medium text-green-800">Health companion</p>
-                </div> */}
+                <div className="-mt-6 pl-8">
+                  <p className="text-base  font-semibold text-green-950">Nourish Move Evolve</p>
+
+                </div>
               </div>
               <Link
                 href="/about"
@@ -324,7 +324,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
-              <button
+              {/* <button
                 type="button"
                 onClick={() => {
                   void handleGoogleAuth();
@@ -338,7 +338,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                     ? "Connecting..."
                     : "Continue with Google"}
                 </span>
-              </button>
+              </button> */}
               <div className="grid grid-cols-2 gap-3">
                 {/*
                 <button

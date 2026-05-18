@@ -726,11 +726,6 @@ export function DashboardShell() {
     }
   }, [router, showErrorToast]);
 
-  useEffect(() => {
-    if (activeSection === "profile" && !profileLoading && (!profile || !isProfileComplete(profile))) {
-      router.replace("/onboarding");
-    }
-  }, [activeSection, profile, profileLoading, router]);
 
   const loadWeightTracker = useCallback(async (dateIso: string) => {
     const token = getStoredAccessToken();
@@ -1273,6 +1268,12 @@ export function DashboardShell() {
 
   async function handleQuickChatSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!profileLoading && (!profile || !isProfileComplete(profile))) {
+      setNutritionProfileModalOpen(true);
+      return;
+    }
+
     const token = getStoredAccessToken();
 
     if (!token || (!chatInput.trim() && !chatImage) || chatting) {
@@ -1803,22 +1804,11 @@ export function DashboardShell() {
   }
 
   function handleSidebarSelect(sectionId: HomeSectionKey) {
-    if (sectionId === "profile" && !profileLoading && (!profile || !isProfileComplete(profile))) {
-      router.push("/onboarding");
-      setSidebarOpen(false);
-      return;
-    }
-
     router.push(HOME_SECTION_ROUTES[sectionId]);
     setSidebarOpen(false);
   }
 
   function openProfileExperience() {
-    if (!profileLoading && (!profile || !isProfileComplete(profile))) {
-      router.push("/onboarding");
-      return;
-    }
-
     router.push(HOME_SECTION_ROUTES.profile);
   }
 
