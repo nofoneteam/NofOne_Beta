@@ -32,8 +32,25 @@ export interface ParsedNutritionData {
         iron?: number;
         potassium?: number;
         vitaminA?: number;
+        vitaminB?: number;
+        thiamine?: number;
+        riboflavin?: number;
+        niacin?: number;
+        pantothenicAcid?: number;
+        vitaminB6?: number;
+        biotin?: number;
+        folate?: number;
+        cobalamin?: number;
         vitaminC?: number;
         vitaminD?: number;
+        vitaminE?: number;
+        vitaminK?: number;
+        magnesium?: number;
+        zinc?: number;
+        phosphorus?: number;
+        copper?: number;
+        manganese?: number;
+        selenium?: number;
         exerciseMinutes: number;
         exerciseCalories: number;
     };
@@ -70,8 +87,25 @@ const STRUCTURED_NUTRIENT_LABELS: Array<{
     { key: "iron", patterns: [/^iron$/i] },
     { key: "potassium", patterns: [/^potassium$/i] },
     { key: "vitaminA", patterns: [/^vitamin a$/i] },
+    { key: "vitaminB", patterns: [/^vitamin b\d*$/i] },
+    { key: "thiamine", patterns: [/^thiamine\s*(?:\(b1\))?$/i, /^vitamin b1$/i] },
+    { key: "riboflavin", patterns: [/^riboflavin\s*(?:\(b2\))?$/i, /^vitamin b2$/i] },
+    { key: "niacin", patterns: [/^niacin\s*(?:\(b3\))?$/i, /^vitamin b3$/i] },
+    { key: "pantothenicAcid", patterns: [/^pantothenic acid\s*(?:\(b5\))?$/i, /^vitamin b5$/i] },
+    { key: "vitaminB6", patterns: [/^vitamin b6$/i, /^pyridoxine$/i] },
+    { key: "biotin", patterns: [/^biotin\s*(?:\(b7\))?$/i, /^vitamin b7$/i] },
+    { key: "folate", patterns: [/^folate\s*(?:\(b9\))?$/i, /^folic acid$/i, /^vitamin b9$/i] },
+    { key: "cobalamin", patterns: [/^cobalamin\s*(?:\(b12\))?$/i, /^vitamin b12$/i] },
     { key: "vitaminC", patterns: [/^vitamin c$/i] },
     { key: "vitaminD", patterns: [/^vitamin d$/i] },
+    { key: "vitaminE", patterns: [/^vitamin e$/i] },
+    { key: "vitaminK", patterns: [/^vitamin k$/i] },
+    { key: "magnesium", patterns: [/^magnesium$/i] },
+    { key: "zinc", patterns: [/^zinc$/i] },
+    { key: "phosphorus", patterns: [/^phosphorus$/i] },
+    { key: "copper", patterns: [/^copper$/i] },
+    { key: "manganese", patterns: [/^manganese$/i] },
+    { key: "selenium", patterns: [/^selenium$/i] },
     { key: "exerciseMinutes", patterns: [/^exercise minutes$/i, /^duration$/i] },
     { key: "exerciseCalories", patterns: [/^burned calories$/i, /^calories burned$/i] },
 ];
@@ -311,8 +345,25 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
     let iron = structuredValues.iron;
     let potassium = structuredValues.potassium;
     let vitaminA = structuredValues.vitaminA;
+    let vitaminB = structuredValues.vitaminB;
+    let thiamine = structuredValues.thiamine;
+    let riboflavin = structuredValues.riboflavin;
+    let niacin = structuredValues.niacin;
+    let pantothenicAcid = structuredValues.pantothenicAcid;
+    let vitaminB6 = structuredValues.vitaminB6;
+    let biotin = structuredValues.biotin;
+    let folate = structuredValues.folate;
+    let cobalamin = structuredValues.cobalamin;
     let vitaminC = structuredValues.vitaminC;
     let vitaminD = structuredValues.vitaminD;
+    let vitaminE = structuredValues.vitaminE;
+    let vitaminK = structuredValues.vitaminK;
+    let magnesium = structuredValues.magnesium;
+    let zinc = structuredValues.zinc;
+    let phosphorus = structuredValues.phosphorus;
+    let copper = structuredValues.copper;
+    let manganese = structuredValues.manganese;
+    let selenium = structuredValues.selenium;
 
     let hasExplicitDishName = false;
 
@@ -383,14 +434,32 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
         potassium = pickNumericValue(potassium, extractOptionalFloat(foodText, [/(?:potassium)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
         
         vitaminA = pickNumericValue(vitaminA, extractOptionalFloat(foodText, [/(?:vitamin a)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        vitaminB = pickNumericValue(vitaminB, extractOptionalFloat(foodText, [/(?:vitamin b\d*)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
         vitaminC = pickNumericValue(vitaminC, extractOptionalFloat(foodText, [/(?:vitamin c)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
         vitaminD = pickNumericValue(vitaminD, extractOptionalFloat(foodText, [/(?:vitamin d)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        vitaminE = pickNumericValue(vitaminE, extractOptionalFloat(foodText, [/(?:vitamin e)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        vitaminK = pickNumericValue(vitaminK, extractOptionalFloat(foodText, [/(?:vitamin k)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        magnesium = pickNumericValue(magnesium, extractOptionalFloat(foodText, [/(?:magnesium)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        zinc = pickNumericValue(zinc, extractOptionalFloat(foodText, [/(?:zinc)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        thiamine = pickNumericValue(thiamine, extractOptionalFloat(foodText, [/(?:thiamine\s*(?:\(b1\))?|vitamin b1)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        riboflavin = pickNumericValue(riboflavin, extractOptionalFloat(foodText, [/(?:riboflavin\s*(?:\(b2\))?|vitamin b2)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        niacin = pickNumericValue(niacin, extractOptionalFloat(foodText, [/(?:niacin\s*(?:\(b3\))?|vitamin b3)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        pantothenicAcid = pickNumericValue(pantothenicAcid, extractOptionalFloat(foodText, [/(?:pantothenic acid\s*(?:\(b5\))?|vitamin b5)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        vitaminB6 = pickNumericValue(vitaminB6, extractOptionalFloat(foodText, [/(?:vitamin b6|pyridoxine)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        biotin = pickNumericValue(biotin, extractOptionalFloat(foodText, [/(?:biotin\s*(?:\(b7\))?|vitamin b7)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        folate = pickNumericValue(folate, extractOptionalFloat(foodText, [/(?:folate\s*(?:\(b9\))?|folic acid|vitamin b9)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        cobalamin = pickNumericValue(cobalamin, extractOptionalFloat(foodText, [/(?:cobalamin\s*(?:\(b12\))?|vitamin b12)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        phosphorus = pickNumericValue(phosphorus, extractOptionalFloat(foodText, [/(?:phosphorus)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        copper = pickNumericValue(copper, extractOptionalFloat(foodText, [/(?:copper)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        manganese = pickNumericValue(manganese, extractOptionalFloat(foodText, [/(?:manganese)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
+        selenium = pickNumericValue(selenium, extractOptionalFloat(foodText, [/(?:selenium)[\s:*_-]*(\d+(?:\.\d+)?)/i]));
     }
 
     const hasAnyMicronutrients = [
         dietaryFibre, starch, otherCarbs, sugar, addedSugars, sugarAlcohols, netCarbs,
         saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat, otherFat,
-        cholesterol, sodium, calcium, iron, potassium, vitaminA, vitaminC, vitaminD
+        cholesterol, sodium, calcium, iron, potassium, vitaminA, vitaminB, vitaminC, vitaminD, vitaminE, vitaminK, magnesium, zinc,
+        thiamine, riboflavin, niacin, pantothenicAcid, vitaminB6, biotin, folate, cobalamin, phosphorus, copper, manganese, selenium
     ].some((val) => val !== undefined && val !== 0);
 
     if (
@@ -433,8 +502,25 @@ export function parseNutritionFromText(text: string): ParsedNutritionData | null
             iron,
             potassium,
             vitaminA,
+            vitaminB,
+            thiamine,
+            riboflavin,
+            niacin,
+            pantothenicAcid,
+            vitaminB6,
+            biotin,
+            folate,
+            cobalamin,
             vitaminC,
             vitaminD,
+            vitaminE,
+            vitaminK,
+            magnesium,
+            zinc,
+            phosphorus,
+            copper,
+            manganese,
+            selenium,
             exerciseMinutes: exerciseMinutes,
             exerciseCalories: exerciseCalories,
         }),

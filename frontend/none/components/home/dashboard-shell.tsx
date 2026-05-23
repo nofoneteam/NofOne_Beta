@@ -1271,7 +1271,6 @@ export function DashboardShell() {
 
     if (!profileLoading && (!profile || !isProfileComplete(profile))) {
       setNutritionProfileModalOpen(true);
-      return;
     }
 
     const token = getStoredAccessToken();
@@ -1797,7 +1796,6 @@ export function DashboardShell() {
   function handleNutritionDetailsClick(openDetails: () => void) {
     if (!profileLoading && (!profile || !isProfileComplete(profile))) {
       setNutritionProfileModalOpen(true);
-      return;
     }
 
     openDetails();

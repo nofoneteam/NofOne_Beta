@@ -76,6 +76,47 @@ async function getChatModel() {
   return chatModelPromise;
 }
 
+let textAgentPromise;
+
+async function getTextAgent() {
+  if (!textAgentPromise) {
+    const [{ ChatGroq }, { createReactAgent }, { DynamicTool }] = await Promise.all([
+      import("@langchain/groq"),
+      import("@langchain/langgraph/prebuilt"),
+      import("@langchain/core/tools"),
+    ]);
+
+    const webSearchTool = new DynamicTool({
+      name: "web_search",
+      description: "Search the web for nutritional information on obscure regional food items, dishes, or supplements. Input should be a short search query.",
+      func: async (query) => {
+        try {
+          const fetchObj = (await import("node-fetch")).default || global.fetch;
+          const res = await fetchObj(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
+          const html = await res.text();
+          const snippets = [...html.matchAll(/<a class="result__snippet[^>]*>(.*?)<\/a>/g)].map(m => m[1].replace(/<[^>]+>/g, ''));
+          return snippets.slice(0, 3).join("\n") || "No results found.";
+        } catch (e) {
+          return "Search failed.";
+        }
+      }
+    });
+
+    const model = new ChatGroq({
+      apiKey: env.groq.apiKey,
+      model: env.groq.chatModel,
+      temperature: 0.1,
+      maxRetries: 2,
+    });
+
+    textAgentPromise = createReactAgent({
+      llm: model,
+      tools: [webSearchTool],
+    });
+  }
+  return textAgentPromise;
+}
+
 function mapHistoryToMessages(previousMessages) {
   return previousMessages.slice(-env.chatMemory.promptRecentTurns).map((message) => ({
     role: message.role,
@@ -257,21 +298,23 @@ async function generateHealthAssistantReply(conversationContext, payload) {
   const prompts = await getResolvedSystemPrompts();
 
   if (payload.type !== "image") {
-    const [model, messageTypes] = await Promise.all([
-      getChatModel(),
+    const [agent, messageTypes] = await Promise.all([
+      getTextAgent(),
       import("@langchain/core/messages"),
     ]);
-    // Plain text requests skip the agent loop entirely so we avoid MCP and tool orchestration latency.
-    const response = await model.invoke([
-      new messageTypes.SystemMessage(prompts.text),
-      ...(systemContextMessage
-        ? [new messageTypes.SystemMessage(systemContextMessage)]
-        : []),
-      ...mapHistoryToLangChainMessages(recentMessages, messageTypes),
-      new messageTypes.HumanMessage(userPrompt),
-    ]);
+    
+    const response = await agent.invoke({
+      messages: [
+        new messageTypes.SystemMessage(prompts.text),
+        ...(systemContextMessage
+          ? [new messageTypes.SystemMessage(systemContextMessage)]
+          : []),
+        ...mapHistoryToLangChainMessages(recentMessages, messageTypes),
+        new messageTypes.HumanMessage(userPrompt),
+      ]
+    });
 
-    return extractTextContent(response.content);
+    return extractAssistantReply(response);
   }
 
   // Image requests go directly to the Groq vision API — bypassing the MCP agent loop

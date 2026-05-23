@@ -319,7 +319,17 @@ export function OnboardingFlow() {
                 </div>
               </div>
 
-              <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+              {/* Animated Guide Bubble */}
+              <div className="mt-6 flex justify-start sm:pl-2">
+                <div className="animate-bounce relative inline-flex flex-col items-start sm:items-center">
+                  <div className="rounded-xl bg-green-800 px-4 py-2 text-[14px] font-medium text-white shadow-lg">
+                    Let's set up your profile to get started!
+                  </div>
+                  <div className="ml-6 sm:ml-0 h-0 w-0 border-l-[8px] border-r-[8px] border-t-[8px] border-l-transparent border-r-transparent border-t-green-800" />
+                </div>
+              </div>
+
+              <form className="mt-2 space-y-5" onSubmit={handleSubmit}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Name">
                     <Input

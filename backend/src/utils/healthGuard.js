@@ -159,42 +159,12 @@ function isAbusiveMessage(message = "") {
 }
 
 function isHealthDomainRequest(payload, previousMessages = []) {
-  if (payload.type === "image") {
-    if (!payload.message) {
-      return true;
-    }
-
-    return (
-      messageMentionsHealthTopic(payload.message) ||
-      messageLooksLikeMealLog(payload.message) ||
-      messageLooksLikeQuantifiedHealthLog(payload.message) ||
-      messageLooksLikeGeneralNutritionQuery(payload.message) ||
-      messageLooksLikeStandaloneFoodName(payload.message) ||
-      messageIsAllowedGeneralConversation(payload.message)
-    );
+  if (payload.message && isAbusiveOrNonsensicalMessage(payload.message)) {
+    return false;
   }
 
-  if (
-    messageMentionsHealthTopic(payload.message) ||
-    messageLooksLikeMealLog(payload.message) ||
-    messageLooksLikeQuantifiedHealthLog(payload.message) ||
-    messageLooksLikeGeneralNutritionQuery(payload.message) ||
-    messageLooksLikeStandaloneFoodName(payload.message) ||
-    messageIsAllowedGeneralConversation(payload.message)
-  ) {
-    return true;
-  }
-
-  if (
-    payload.message &&
-    !isAbusiveOrNonsensicalMessage(payload.message) &&
-    payload.message.trim().length <= 120 &&
-    previousMessages.some((message) => messageMentionsHealthTopic(message.message))
-  ) {
-    return true;
-  }
-
-  return false;
+  // Let the LLM handle all the topic filtering as requested by the user.
+  return true;
 }
 
 function messageNeedsConversationContext(message = "") {

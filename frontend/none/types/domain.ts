@@ -152,8 +152,25 @@ export interface NutritionDetails {
   iron?: number;
   potassium?: number;
   vitaminA?: number;
+  vitaminB?: number;
+  thiamine?: number;
+  riboflavin?: number;
+  niacin?: number;
+  pantothenicAcid?: number;
+  vitaminB6?: number;
+  biotin?: number;
+  folate?: number;
+  cobalamin?: number;
   vitaminC?: number;
   vitaminD?: number;
+  vitaminE?: number;
+  vitaminK?: number;
+  magnesium?: number;
+  zinc?: number;
+  phosphorus?: number;
+  copper?: number;
+  manganese?: number;
+  selenium?: number;
 }
 
 export interface Session {
