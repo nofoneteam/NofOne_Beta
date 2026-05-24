@@ -364,7 +364,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                       : "border-green-100 bg-white text-green-700 hover:border-green-300",
                   )}
                 >
-                  Continue with phone
+                  Continue with phon
                 </button> */}
               </div>
             </div>
