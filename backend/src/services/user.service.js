@@ -270,6 +270,21 @@ function sanitizeProfileAiUpdates(updates, note) {
     nextUpdates.targetBurn = targetBurn;
   }
 
+  const targetCarbs = normalizePositiveNumber(updates.targetCarbs);
+  if (targetCarbs !== undefined) {
+    nextUpdates.targetCarbs = targetCarbs;
+  }
+
+  const targetProtein = normalizePositiveNumber(updates.targetProtein);
+  if (targetProtein !== undefined) {
+    nextUpdates.targetProtein = targetProtein;
+  }
+
+  const targetFat = normalizePositiveNumber(updates.targetFat);
+  if (targetFat !== undefined) {
+    nextUpdates.targetFat = targetFat;
+  }
+
   const goal = normalizeGoalValue(updates.goal, note);
   if (goal) {
     nextUpdates.goal = goal;
@@ -377,6 +392,9 @@ async function getHealthProfile(userId) {
       targetWeight: null,
       targetCalories: null,
       targetBurn: null,
+      targetCarbs: null,
+      targetProtein: null,
+      targetFat: null,
       bmi: null,
       bmiCategory: null,
       location: null,
@@ -469,7 +487,7 @@ async function generateProfileAiSuggestion(userId, note) {
       {
         role: "system",
         content:
-          'You extract health profile updates from a user note for a wellness app. Return strict JSON with shape {"summary": string, "updates": object}. Only include keys from this allowlist when directly supported by the note: age, gender, height, weight, targetCalories, targetBurn, location, city, ethnicityCuisine, activityLevel, goal, dietType, diabetes, hypertension, cholesterol, cancerSurvivor, hrt, otherConditions, allergies, foodDislikes. Use arrays for allergies and foodDislikes. Use null or omit unsupported values. Never invent facts. Your job is to fill as much of the supported profile schema as the note clearly provides, especially when the user asks to "set my profile" or "set my profile and daily goals". Prioritize extracting or inferring all relevant profile fields that affect personalization: body metrics, calorie targets (targetCalories, targetBurn), location/background, activity level, goal, diet type, diseases/conditions, allergies, and food dislikes. When the note clearly implies a fitness direction, infer the most relevant goal and activity level. Example: marathon training usually implies at least an active routine and often a maintain goal unless weight loss or muscle gain is explicitly mentioned. In the summary, briefly state what was captured and, if important core profile fields are still missing for better daily-goal personalization, mention the missing categories concisely. The app will recalculate daily calorie and macro goals from the saved profile, so focus on profile fields that drive those goals.',
+          'You extract health profile updates from a user note for a wellness app. Return strict JSON with shape {"summary": string, "updates": object}. Only include keys from this allowlist when directly supported by the note: age, gender, height, weight, targetCalories, targetBurn, targetCarbs, targetProtein, targetFat, location, city, ethnicityCuisine, activityLevel, goal, dietType, diabetes, hypertension, cholesterol, cancerSurvivor, hrt, otherConditions, allergies, foodDislikes. Use arrays for allergies and foodDislikes. Use null or omit unsupported values. Never invent facts. Your job is to fill as much of the supported profile schema as the note clearly provides, especially when the user asks to "set my profile" or "set my profile and daily goals". Prioritize extracting or inferring all relevant profile fields that affect personalization: body metrics, calorie targets (targetCalories, targetBurn), macro targets (targetCarbs, targetProtein, targetFat), location/background, activity level, goal, diet type, diseases/conditions, allergies, and food dislikes. When the note clearly implies a fitness direction, infer the most relevant goal and activity level. Example: marathon training usually implies at least an active routine and often a maintain goal unless weight loss or muscle gain is explicitly mentioned. In the summary, briefly state what was captured and, if important core profile fields are still missing for better daily-goal personalization, mention the missing categories concisely. The app will recalculate daily calorie and macro goals from the saved profile, so focus on profile fields that drive those goals.',
       },
       {
         role: "user",
@@ -481,6 +499,9 @@ async function generateProfileAiSuggestion(userId, note) {
             weight: profile.weight,
             targetCalories: profile.targetCalories,
             targetBurn: profile.targetBurn,
+            targetCarbs: profile.targetCarbs,
+            targetProtein: profile.targetProtein,
+            targetFat: profile.targetFat,
             location: profile.location,
             city: profile.city,
             ethnicityCuisine: profile.ethnicityCuisine,

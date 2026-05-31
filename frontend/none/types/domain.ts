@@ -54,6 +54,9 @@ export interface HealthProfile {
   targetWeight: number | null;
   targetCalories?: number | null;
   targetBurn?: number | null;
+  targetCarbs?: number | null;
+  targetProtein?: number | null;
+  targetFat?: number | null;
   bmi: number | null;
   bmiCategory: string | null;
   location: string | null;

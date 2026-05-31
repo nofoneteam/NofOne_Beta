@@ -24,12 +24,24 @@ const healthProfileRules = [
     .withMessage("Target weight must be a positive number"),
   body("targetCalories")
     .optional({ nullable: true })
-    .isFloat({ min: 1 })
-    .withMessage("Target calories must be a positive number"),
+    .isFloat({ min: 0 })
+    .withMessage("Target calories must be a positive number or zero"),
   body("targetBurn")
     .optional({ nullable: true })
-    .isFloat({ min: 1 })
-    .withMessage("Target burn must be a positive number"),
+    .isFloat({ min: 0 })
+    .withMessage("Target burn must be a positive number or zero"),
+  body("targetCarbs")
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage("Target carbs must be a positive number or zero"),
+  body("targetProtein")
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage("Target protein must be a positive number or zero"),
+  body("targetFat")
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage("Target fat must be a positive number or zero"),
   body("bmi")
     .optional({ nullable: true })
     .isFloat({ min: 1 })

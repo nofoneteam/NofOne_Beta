@@ -208,12 +208,12 @@ function estimateDailyGoals(profile = {}) {
     1200,
     Math.round(maintenanceCalories + getCalorieAdjustment(profile.goal))
   );
-  const proteinTarget = round(
+  const proteinTarget = profile.targetProtein ?? round(
     weight * (normalizeGoal(profile.goal) === "loss" ? 1.35 : 1.2),
     0
   );
-  const fatTarget = round((calorieTarget * 0.25) / 9, 0);
-  const carbTarget = round(
+  const fatTarget = profile.targetFat ?? round((calorieTarget * 0.25) / 9, 0);
+  const carbTarget = profile.targetCarbs ?? round(
     Math.max(calorieTarget - proteinTarget * 4 - fatTarget * 9, 0) / 4,
     0
   );
