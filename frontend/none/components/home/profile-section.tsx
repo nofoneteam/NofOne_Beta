@@ -126,6 +126,8 @@ const aiUpdatableFields = new Set<keyof DraftProfile>([
   "otherConditions",
   "allergies",
   "foodDislikes",
+  "targetCalories",
+  "targetBurn",
 ]);
 
 function calculateBmi(weight?: number | null, height?: number | null) {
@@ -199,6 +201,8 @@ function toDraftProfile(profile: HealthProfileWithUser): DraftProfile {
     height: profile.height ?? undefined,
     weight: profile.weight ?? undefined,
     targetWeight: null,
+    targetCalories: profile.targetCalories ?? undefined,
+    targetBurn: profile.targetBurn ?? undefined,
     bmi: profile.bmi,
     bmiCategory: profile.bmiCategory,
     location: profile.location,

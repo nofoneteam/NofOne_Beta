@@ -90,6 +90,8 @@ export interface UpsertHealthProfilePayload {
   height?: number;
   weight?: number;
   targetWeight?: number | null;
+  targetCalories?: number | null;
+  targetBurn?: number | null;
   bmi?: number | null;
   bmiCategory?: string | null;
   location?: string | null;

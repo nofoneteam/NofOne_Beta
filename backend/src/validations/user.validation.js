@@ -22,6 +22,14 @@ const healthProfileRules = [
     .optional({ nullable: true })
     .isFloat({ min: 1 })
     .withMessage("Target weight must be a positive number"),
+  body("targetCalories")
+    .optional({ nullable: true })
+    .isFloat({ min: 1 })
+    .withMessage("Target calories must be a positive number"),
+  body("targetBurn")
+    .optional({ nullable: true })
+    .isFloat({ min: 1 })
+    .withMessage("Target burn must be a positive number"),
   body("bmi")
     .optional({ nullable: true })
     .isFloat({ min: 1 })
