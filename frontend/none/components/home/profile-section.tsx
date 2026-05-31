@@ -959,12 +959,22 @@ export function ProfileSection({
               <p className="mt-1 text-[14px] text-[#7f8790]">{pendingSuggestion.summary}</p>
             </div>
             <div className="space-y-3 px-5 py-5">
-              {Object.keys(pendingSuggestion.updates).length === 0 ? (
-                <div className="rounded-[16px] bg-[#f8f7f2] px-4 py-4 text-[14px] text-[#707780]">
-                  No concrete profile values were extracted from that note.
-                </div>
-              ) : (
-                Object.entries(pendingSuggestion.updates).map(([key, value]) => (
+              {(() => {
+                const effectiveUpdates = Object.entries(pendingSuggestion.updates).filter(([key, value]) => {
+                  const oldVal = formatDisplayValue(key as DraftFieldKey, draft[key as DraftFieldKey]);
+                  const newVal = formatSuggestionValue(value);
+                  return oldVal !== newVal;
+                });
+
+                if (effectiveUpdates.length === 0) {
+                  return (
+                    <div className="rounded-[16px] bg-[#f8f7f2] px-4 py-4 text-[14px] text-[#707780]">
+                      No changes made based on the provided note.
+                    </div>
+                  );
+                }
+
+                return effectiveUpdates.map(([key, value]) => (
                   <div key={key} className="rounded-[16px] bg-[#f8f7f2] px-4 py-3">
                     <label className="flex items-start gap-3">
                       <input
@@ -995,8 +1005,8 @@ export function ProfileSection({
                       </div>
                     </label>
                   </div>
-                ))
-              )}
+                ));
+              })()}
             </div>
             <div className="flex justify-end gap-3 border-t border-[#efeee7] px-5 py-4">
               <button
