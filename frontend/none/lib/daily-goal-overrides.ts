@@ -1,6 +1,6 @@
 import type { DailyGoalsSummary, GoalMetric } from "@/types/domain";
 
-export type GoalOverrideMap = Partial<Record<GoalMetric["key"], number>>;
+export type GoalOverrideMap = Partial<Record<GoalMetric["key"] | "targetBurn", number>>;
 
 export function getDailyGoalOverrideStorageKey(scope: string) {
   return `nofone:daily-goal-targets:${scope}`;

@@ -38,14 +38,29 @@ const genderOptions = [
 
 const dietOptions = [
   { label: "Balanced", value: "Balanced" },
+  { label: "High-Protein", value: "High-Protein" },
+  { label: "Low-Carb", value: "Low-Carb" },
+  { label: "Low-Fat", value: "Low-Fat" },
+  { label: "Low-Sodium", value: "Low-Sodium" },
+  { label: "Diabetic-Friendly", value: "Diabetic-Friendly" },
+  { label: "Heart-Healthy", value: "Heart-Healthy" },
   { label: "Keto", value: "Keto" },
   { label: "Vegan", value: "Vegan" },
   { label: "Vegetarian", value: "Vegetarian" },
+  { label: "Pescatarian", value: "Pescatarian" },
   { label: "Paleo", value: "Paleo" },
   { label: "Mediterranean", value: "Mediterranean" },
   { label: "Low-FODMAP", value: "Low-FODMAP" },
   { label: "Gluten-Free", value: "Gluten-Free" },
+  { label: "Dairy-Free", value: "Dairy-Free" },
+  { label: "Jain", value: "Jain" },
+  { label: "Halal", value: "Halal" },
+  { label: "Kosher", value: "Kosher" },
+  { label: "Intermittent Fasting", value: "Intermittent Fasting" },
+  { label: "Other", value: "Other" },
 ] as const;
+
+const presetDietValues = new Set(dietOptions.map((option) => option.value));
 
 function calculateBmi(weight: number, height: number) {
   const heightInMeters = height / 100;
@@ -89,10 +104,10 @@ export function OnboardingFlow() {
     gender: "",
     height: "",
     weight: "",
-    targetWeight: "",
     activityLevel: "moderate",
     goal: "lose_weight",
     dietType: "",
+    dietTypeOther: "",
     city: "",
   });
 
@@ -122,19 +137,19 @@ export function OnboardingFlow() {
         }
 
         setProfile(profileResponse.data);
+        const resolvedDietType = profileResponse.data.dietType ?? "";
+        const isCustomDietType = resolvedDietType && !presetDietValues.has(resolvedDietType);
+
         setForm({
           name: profileResponse.data.user?.name ?? "",
           age: profileResponse.data.age != null ? String(profileResponse.data.age) : "",
           gender: profileResponse.data.gender ?? "",
           height: profileResponse.data.height != null ? String(profileResponse.data.height) : "",
           weight: profileResponse.data.weight != null ? String(profileResponse.data.weight) : "",
-          targetWeight:
-            profileResponse.data.targetWeight != null
-              ? String(profileResponse.data.targetWeight)
-              : "",
           activityLevel: profileResponse.data.activityLevel ?? "moderate",
           goal: profileResponse.data.goal ?? "lose_weight",
-          dietType: profileResponse.data.dietType ?? "",
+          dietType: isCustomDietType ? "Other" : resolvedDietType,
+          dietTypeOther: isCustomDietType ? resolvedDietType : "",
           city: profileResponse.data.city ?? "",
         });
       } catch {
@@ -190,12 +205,24 @@ export function OnboardingFlow() {
     const age = Number(form.age);
     const height = Number(form.height);
     const weight = Number(form.weight);
-    const targetWeight = form.targetWeight ? Number(form.targetWeight) : null;
+    const resolvedDietType =
+      form.dietType === "Other"
+        ? form.dietTypeOther.trim()
+        : form.dietType.trim();
 
     if (!form.name || !age || !height || !weight || !form.activityLevel || !form.goal) {
       toast({
         title: "Missing fields",
         description: "Please complete your name and core health details before continuing.",
+        variant: "error",
+      });
+      return;
+    }
+
+    if (form.dietType === "Other" && !resolvedDietType) {
+      toast({
+        title: "Add your diet type",
+        description: "Please enter your diet type when selecting Other.",
         variant: "error",
       });
       return;
@@ -211,13 +238,13 @@ export function OnboardingFlow() {
         gender: form.gender || null,
         height,
         weight,
-        targetWeight,
+        targetWeight: null,
         bmi,
         bmiCategory: getBmiCategory(bmi),
         city: form.city || null,
         activityLevel: form.activityLevel as UpsertHealthProfilePayload["activityLevel"],
         goal: form.goal as UpsertHealthProfilePayload["goal"],
-        dietType: form.dietType || null,
+        dietType: resolvedDietType || null,
         allergies: profile?.allergies ?? [],
         foodDislikes: profile?.foodDislikes ?? [],
         aiNotes: profile?.aiNotes ?? [],
@@ -293,7 +320,7 @@ export function OnboardingFlow() {
                   <StatTile label="BMI" value={bmiPreview ? bmiPreview.value.toFixed(1) : "—"} />
                   <StatTile label="Goal" value={goalOptions.find((option) => option.value === form.goal)?.label ?? "—"} />
                   <StatTile label="Activity" value={activityOptions.find((option) => option.value === form.activityLevel)?.label ?? "—"} />
-                  <StatTile label="Target Weight" value={form.targetWeight || "—"} />
+                  <StatTile label="City" value={form.city || "—"} />
                 </div>
               </div>
 
@@ -323,7 +350,7 @@ export function OnboardingFlow() {
               <div className="mt-6 flex justify-start sm:pl-2">
                 <div className="animate-bounce relative inline-flex flex-col items-start sm:items-center">
                   <div className="rounded-xl bg-green-800 px-4 py-2 text-[14px] font-medium text-white shadow-lg">
-                    Let's set up your profile to get started!
+                    Let&apos;s set up your profile to get started!
                   </div>
                   <div className="ml-6 sm:ml-0 h-0 w-0 border-l-[8px] border-r-[8px] border-t-[8px] border-l-transparent border-r-transparent border-t-green-800" />
                 </div>
@@ -390,16 +417,6 @@ export function OnboardingFlow() {
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Target Weight (kg)">
-                    <Input
-                      min="1"
-                      onChange={(event) => setForm((current) => ({ ...current, targetWeight: event.target.value }))}
-                      placeholder="68"
-                      step="0.1"
-                      type="number"
-                      value={form.targetWeight}
-                    />
-                  </Field>
                   <Field label="City">
                     <Input
                       onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
@@ -407,6 +424,7 @@ export function OnboardingFlow() {
                       value={form.city}
                     />
                   </Field>
+                  <div className="hidden sm:block" />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -441,7 +459,13 @@ export function OnboardingFlow() {
                 <Field label="Diet Type">
                   <select
                     className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                    onChange={(event) => setForm((current) => ({ ...current, dietType: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        dietType: event.target.value,
+                        dietTypeOther: event.target.value === "Other" ? current.dietTypeOther : "",
+                      }))
+                    }
                     value={form.dietType}
                   >
                     <option value="">Select diet type</option>
@@ -452,6 +476,18 @@ export function OnboardingFlow() {
                     ))}
                   </select>
                 </Field>
+                {form.dietType === "Other" ? (
+                  <Field label="Other Diet Type">
+                    <Input
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, dietTypeOther: event.target.value }))
+                      }
+                      placeholder="Tell us your diet type"
+                      type="text"
+                      value={form.dietTypeOther}
+                    />
+                  </Field>
+                ) : null}
 
                 <div className="rounded-[20px] border border-[#edf0e8] bg-[#fafaf7] px-4 py-4 text-[14px] leading-6 text-[#67707a]">
                   Your dashboard will be generated from these values, and you can refine everything later from Profile

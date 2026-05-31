@@ -204,7 +204,7 @@ function estimateDailyGoals(profile = {}) {
   const bmrBase = 10 * weight + 6.25 * height - 5 * age;
   const genderOffset = gender === "male" ? 5 : gender === "female" ? -161 : 0;
   const maintenanceCalories = (bmrBase + genderOffset) * activityFactor;
-  const calorieTarget = Math.max(
+  const calorieTarget = profile.targetCalories ?? Math.max(
     1200,
     Math.round(maintenanceCalories + getCalorieAdjustment(profile.goal))
   );
@@ -222,6 +222,7 @@ function estimateDailyGoals(profile = {}) {
   // and stay consistent even when users have sparse logs.
   return {
     calories: calorieTarget,
+    burntCalories: profile.targetBurn ?? undefined,
     exerciseMinutes: 30,
     waterIntake: 8,
     sleepHours: 8,
@@ -318,6 +319,7 @@ function buildDailyGoals(log, goals, profile = {}) {
       calories: round(log?.calories ?? 0, 0),
       exerciseCalories: round(log?.exerciseCalories ?? 0, 0),
       sleepCalories,
+      targetBurn: goals.burntCalories,
     },
   };
 }

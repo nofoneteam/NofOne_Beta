@@ -11,6 +11,8 @@ const HealthProfileModel = {
       height: input.height ?? existingData?.height,
       weight: input.weight ?? existingData?.weight,
       targetWeight: input.targetWeight ?? existingData?.targetWeight ?? null,
+      targetCalories: input.targetCalories ?? existingData?.targetCalories ?? null,
+      targetBurn: input.targetBurn ?? existingData?.targetBurn ?? null,
       bmi: input.bmi ?? existingData?.bmi ?? null,
       bmiCategory: input.bmiCategory ?? existingData?.bmiCategory ?? null,
       location: input.location ?? existingData?.location ?? null,

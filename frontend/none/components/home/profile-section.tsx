@@ -51,6 +51,7 @@ type SpeechRecognitionEventLike = {
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+type SuggestionSelectionMap = Record<string, boolean>;
 
 const yesNoOptions: Option[] = [
   { label: "Yes", value: "yes" },
@@ -82,22 +83,120 @@ const goalOptions: Option[] = [
 
 const dietOptions: Option[] = [
   { label: "Balanced", value: "Balanced" },
+  { label: "High-Protein", value: "High-Protein" },
+  { label: "Low-Carb", value: "Low-Carb" },
+  { label: "Low-Fat", value: "Low-Fat" },
+  { label: "Low-Sodium", value: "Low-Sodium" },
+  { label: "Diabetic-Friendly", value: "Diabetic-Friendly" },
+  { label: "Heart-Healthy", value: "Heart-Healthy" },
   { label: "Keto", value: "Keto" },
   { label: "Vegan", value: "Vegan" },
   { label: "Vegetarian", value: "Vegetarian" },
+  { label: "Pescatarian", value: "Pescatarian" },
   { label: "Paleo", value: "Paleo" },
   { label: "Mediterranean", value: "Mediterranean" },
   { label: "Low-FODMAP", value: "Low-FODMAP" },
   { label: "Gluten-Free", value: "Gluten-Free" },
+  { label: "Dairy-Free", value: "Dairy-Free" },
+  { label: "Jain", value: "Jain" },
+  { label: "Halal", value: "Halal" },
+  { label: "Kosher", value: "Kosher" },
+  { label: "Intermittent Fasting", value: "Intermittent Fasting" },
+  { label: "Other", value: "Other" },
 ] as const;
 
-function toDraftProfile(profile: HealthProfileWithUser): DraftProfile {
+const presetDietValues = new Set(dietOptions.map((option) => option.value));
+
+const aiUpdatableFields = new Set<keyof DraftProfile>([
+  "age",
+  "gender",
+  "height",
+  "weight",
+  "location",
+  "city",
+  "ethnicityCuisine",
+  "activityLevel",
+  "goal",
+  "dietType",
+  "diabetes",
+  "hypertension",
+  "cholesterol",
+  "cancerSurvivor",
+  "hrt",
+  "otherConditions",
+  "allergies",
+  "foodDislikes",
+]);
+
+function calculateBmi(weight?: number | null, height?: number | null) {
+  if (!weight || !height) {
+    return null;
+  }
+
+  const heightInMeters = height / 100;
+
+  if (!heightInMeters) {
+    return null;
+  }
+
+  return Number((weight / (heightInMeters * heightInMeters)).toFixed(1));
+}
+
+function getBmiCategory(bmi: number | null) {
+  if (bmi == null) {
+    return null;
+  }
+
+  if (bmi < 18.5) {
+    return "Underweight";
+  }
+
+  if (bmi < 25) {
+    return "Normal";
+  }
+
+  if (bmi < 30) {
+    return "Overweight";
+  }
+
+  return "Obese";
+}
+
+function normalizeDraftProfile(draft: DraftProfile): DraftProfile {
+  const bmi = calculateBmi(
+    draft.weight != null ? Number(draft.weight) : null,
+    draft.height != null ? Number(draft.height) : null,
+  );
+
   return {
+    ...draft,
+    targetWeight: null,
+    bmi,
+    bmiCategory: getBmiCategory(bmi),
+  };
+}
+
+function sanitizeAiSuggestionUpdates(updates: Record<string, unknown>): Partial<DraftProfile> {
+  return Object.entries(updates).reduce<Partial<DraftProfile>>((accumulator, [key, value]) => {
+    if (!aiUpdatableFields.has(key as DraftFieldKey)) {
+      return accumulator;
+    }
+
+    accumulator[key as DraftFieldKey] = value as DraftProfile[DraftFieldKey];
+    return accumulator;
+  }, {});
+}
+
+function toDraftProfile(profile: HealthProfileWithUser): DraftProfile {
+  const resolvedDietType = profile.dietType ?? null;
+  const isCustomDietType = resolvedDietType != null && !presetDietValues.has(resolvedDietType);
+
+  return normalizeDraftProfile({
     age: profile.age ?? undefined,
     gender: profile.gender,
     height: profile.height ?? undefined,
     weight: profile.weight ?? undefined,
-    targetWeight: profile.targetWeight,
+    targetWeight: null,
     bmi: profile.bmi,
     bmiCategory: profile.bmiCategory,
     location: profile.location,
@@ -105,7 +204,7 @@ function toDraftProfile(profile: HealthProfileWithUser): DraftProfile {
     ethnicityCuisine: profile.ethnicityCuisine,
     activityLevel: profile.activityLevel ?? undefined,
     goal: profile.goal ?? undefined,
-    dietType: profile.dietType,
+    dietType: isCustomDietType ? "Other" : resolvedDietType,
     diabetes: profile.diabetes,
     hypertension: profile.hypertension,
     cholesterol: profile.cholesterol,
@@ -115,7 +214,7 @@ function toDraftProfile(profile: HealthProfileWithUser): DraftProfile {
     allergies: profile.allergies ?? [],
     foodDislikes: profile.foodDislikes ?? [],
     aiNotes: profile.aiNotes ?? [],
-  };
+  });
 }
 
 function normalizeValue(
@@ -151,6 +250,32 @@ function formatDisplayValue(field: DraftFieldKey, value: DraftProfile[DraftField
 
   if (field === "goal" || field === "activityLevel") {
     return String(value)
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  return String(value);
+}
+
+function formatSuggestionLabel(key: string) {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase())
+    .trim();
+}
+
+function formatSuggestionValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(", ") : "None";
+  }
+
+  if (value == null || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "string") {
+    return value
       .split("_")
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
@@ -325,10 +450,15 @@ export function ProfileSection({
   const [aiError, setAiError] = useState<string | null>(null);
   const [pendingSuggestion, setPendingSuggestion] = useState<ProfileAiSuggestion | null>(null);
   const [pendingNote, setPendingNote] = useState("");
+  const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState<SuggestionSelectionMap>({});
   const reportInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [customDietType, setCustomDietType] = useState(() => {
+    const resolvedDietType = profile?.dietType ?? "";
+    return resolvedDietType && !presetDietValues.has(resolvedDietType) ? resolvedDietType : "";
+  });
 
   useEffect(() => {
     return () => {
@@ -340,11 +470,6 @@ export function ProfileSection({
   const bmi = draft?.bmi ?? null;
   const bmiCategory = draft?.bmiCategory ?? "Normal";
   const currentWeight = draft?.weight ?? null;
-  const targetWeight = draft?.targetWeight ?? null;
-  const toGo =
-    targetWeight != null && currentWeight != null
-      ? Math.max(Number((currentWeight - targetWeight).toFixed(1)), 0)
-      : null;
 
   const canSave = useMemo(() => {
     if (!draft) {
@@ -361,31 +486,53 @@ export function ProfileSection({
   }, [draft]);
 
   function applyField(field: DraftFieldKey, value: DraftProfile[DraftFieldKey]) {
-    setDraft((current) => (current ? { ...current, [field]: value } : current));
+    if (field === "dietType" && value !== "Other") {
+      setCustomDietType("");
+    }
+
+    setDraft((current) =>
+      current ? normalizeDraftProfile({ ...current, [field]: value, targetWeight: null }) : current,
+    );
   }
 
-  function applySuggestion() {
-    if (!pendingSuggestion) {
+  function applyCustomDietType(value: string) {
+    setCustomDietType(value);
+  }
+
+  async function applySuggestion() {
+    if (!pendingSuggestion || !draft) {
       return;
     }
 
-    setDraft((current) => {
-      if (!current) {
-        return current;
-      }
+    const selectedUpdates = Object.fromEntries(
+      Object.entries(pendingSuggestion.updates).filter(([key]) => selectedSuggestionKeys[key])
+    ) as Record<string, unknown>;
 
-      const nextDraft = {
-        ...current,
-        ...pendingSuggestion.updates,
-        aiNotes: pendingNote
-          ? [...(current.aiNotes ?? []), pendingNote]
-          : current.aiNotes,
-      } as DraftProfile;
+    if (Object.keys(selectedUpdates).length === 0) {
+      setAiError("Select at least one suggested profile change before saving.");
+      return;
+    }
 
-      return nextDraft;
-    });
-    setPendingSuggestion(null);
-    setPendingNote("");
+    const nextDraft = normalizeDraftProfile({
+      ...draft,
+      ...sanitizeAiSuggestionUpdates(selectedUpdates),
+      aiNotes: pendingNote
+        ? Array.from(new Set([...(draft.aiNotes ?? []), pendingNote]))
+        : draft.aiNotes,
+      targetWeight: null,
+    } as DraftProfile);
+
+    setDraft(nextDraft);
+    setAiError(null);
+
+    try {
+      await onSaveProfile(nextDraft);
+      setPendingSuggestion(null);
+      setPendingNote("");
+      setSelectedSuggestionKeys({});
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Unable to save AI profile updates.");
+    }
   }
 
   function handleSpeechUnavailable(message: string) {
@@ -529,12 +676,12 @@ export function ProfileSection({
       <Card className="rounded-[26px] border-[#ecece7] bg-white shadow-[0_10px_32px_rgba(17,17,17,0.04)]">
         <CardContent className="p-5 sm:p-6">
           <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#9ca3ad]">
-            Weight Journey
+            Health Snapshot
           </p>
           <div className="mt-4 grid grid-cols-3 divide-x divide-[#ecece7]">
             <MetricStat label="Current (kg)" tone="text-[#171717]" value={currentWeight != null ? String(currentWeight) : "—"} />
-            <MetricStat label="Target (kg)" tone="text-green-800" value={targetWeight != null ? String(targetWeight) : "—"} />
-            <MetricStat label="To Go (kg)" tone="text-[#e49a46]" value={toGo != null ? String(toGo) : "—"} />
+            <MetricStat label="Goal" tone="text-green-800" value={formatDisplayValue("goal", draft.goal)} />
+            <MetricStat label="Activity" tone="text-[#e49a46]" value={formatDisplayValue("activityLevel", draft.activityLevel)} />
           </div>
         </CardContent>
       </Card>
@@ -620,52 +767,65 @@ export function ProfileSection({
             <span>AI Notes</span>
           </div>
           <p className="text-[14px] leading-6 text-[#8c939b]">
-            Drop a note, it updates your draft profile context for smarter suggestions.
+            Tell Nofone about your body metrics, routine, health conditions, allergies, diet type, dislikes, and training goals. It will update your profile draft and refresh your daily calorie targets after save.
           </p>
           {aiError ? (
             <div className="rounded-[16px] border border-[#f0d7d7] bg-[#fff4f4] px-4 py-3 text-[13px] text-[#c05454]">
               {aiError}
             </div>
           ) : null}
-          <div className="flex items-center gap-3 rounded-[18px] bg-[#f7f4ed] px-4 py-3">
-            <input
-              className="min-w-0 flex-1 bg-transparent text-[15px] text-[#171717] outline-none placeholder:text-[#a5abb4]"
+          <div className="rounded-[18px] bg-[#f7f4ed] px-4 py-3">
+            <textarea
+              className="min-h-[108px] w-full resize-none bg-transparent text-[15px] leading-6 text-[#171717] outline-none placeholder:text-[#a5abb4]"
               onChange={(event) => setNoteInput(event.target.value)}
-              placeholder="e.g. I'm lactose intolerant..."
+              placeholder="Tell me about yourself, your health conditions, allergies, diet, dislikes, and goals"
               value={noteInput}
             />
-            <button
-              className={cn(
-                "transition-colors",
-                isListening ? "text-green-800" : "text-[#9aa0a8]",
-              )}
-              onClick={handleMicToggle}
-              type="button"
-            >
-              <Mic className="h-4.5 w-4.5" />
-            </button>
-            <button
-              className="flex items-center justify-center text-green-800"
-              onClick={() => {
-                if (!noteInput.trim()) {
-                  return;
-                }
-                const nextNote = noteInput.trim();
-                setAiError(null);
-                void onAnalyzeAiNote(nextNote)
-                  .then((result) => {
-                    setPendingSuggestion(result);
-                    setPendingNote(nextNote);
-                    setNoteInput("");
-                  })
-                  .catch((error) => {
-                    setAiError(error instanceof Error ? error.message : "Unable to analyze note.");
-                  });
-              }}
-              type="button"
-            >
-              {analyzingAi ? <Spinner className="h-4 w-4" /> : <SendHorizonal className="h-4.5 w-4.5" />}
-            </button>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-[13px] text-[#7f8790]">
+                Example: &quot;I am 29, 175 cm, 72 kg, vegetarian, allergic to peanuts, lactose intolerant, training for a marathon, and want my profile and daily goals set.&quot;
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  className={cn(
+                    "transition-colors",
+                    isListening ? "text-green-800" : "text-[#9aa0a8]",
+                  )}
+                  onClick={handleMicToggle}
+                  type="button"
+                >
+                  <Mic className="h-4.5 w-4.5" />
+                </button>
+                <button
+                  className="flex items-center justify-center text-green-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={analyzingAi || !noteInput.trim()}
+                  onClick={() => {
+                    if (!noteInput.trim()) {
+                      return;
+                    }
+                    const nextNote = noteInput.trim();
+                    setAiError(null);
+                    void onAnalyzeAiNote(nextNote)
+                      .then((result) => {
+                        setPendingSuggestion(result);
+                        setPendingNote(nextNote);
+                        setSelectedSuggestionKeys(
+                          Object.fromEntries(
+                            Object.keys(result.updates).map((key) => [key, true])
+                          )
+                        );
+                        setNoteInput("");
+                      })
+                      .catch((error) => {
+                        setAiError(error instanceof Error ? error.message : "Unable to analyze note.");
+                      });
+                  }}
+                  type="button"
+                >
+                  {analyzingAi ? <Spinner className="h-4 w-4" /> : <SendHorizonal className="h-4.5 w-4.5" />}
+                </button>
+              </div>
+            </div>
           </div>
           {isListening || liveTranscript ? (
             <p className="text-[12px] text-[#7f8790]">
@@ -708,7 +868,6 @@ export function ProfileSection({
         <EditableRow field="gender" kind="select" label="Gender" onApply={applyField} options={genderOptions} value={draft.gender} />
         <EditableRow field="height" kind="number" label="Height (cm)" onApply={applyField} value={draft.height} />
         <EditableRow field="weight" kind="number" label="Weight (kg)" onApply={applyField} value={draft.weight} />
-        <EditableRow field="targetWeight" kind="number" label="Target Weight (kg)" onApply={applyField} value={draft.targetWeight} />
       </SectionCard>
 
       <SectionCard title="Location & Background">
@@ -738,13 +897,41 @@ export function ProfileSection({
 
       <SectionCard title="Diet Preference">
         <EditableRow field="dietType" kind="select" label="Diet Type" onApply={applyField} options={dietOptions} value={draft.dietType} />
+        {draft.dietType === "Other" || (!!draft.dietType && !presetDietValues.has(String(draft.dietType))) ? (
+          <EditableRow
+            field="dietType"
+            kind="text"
+            label="Other Diet Type"
+            onApply={(_, value) => applyCustomDietType(String(value ?? ""))}
+            value={draft.dietType === "Other" ? customDietType : draft.dietType}
+          />
+        ) : null}
       </SectionCard>
 
       <div className="sticky bottom-4 flex justify-end">
         <button
           className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-[18px] bg-green-800 px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_16px_34px_rgba(22,34,18,0.14)] transition-opacity hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={!canSave || savingProfile}
-          onClick={() => void onSaveProfile(draft)}
+          onClick={() => {
+            const resolvedDietType =
+              draft.dietType === "Other"
+                ? customDietType.trim()
+                : draft.dietType ?? null;
+
+            if (draft.dietType === "Other" && !resolvedDietType) {
+              toast({
+                title: "Add your diet type",
+                description: "Please enter your diet type when selecting Other.",
+                variant: "error",
+              });
+              return;
+            }
+
+            void onSaveProfile({
+              ...draft,
+              dietType: resolvedDietType,
+            }).catch(() => null);
+          }}
           type="button"
         >
           {savingProfile ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4" />}
@@ -766,11 +953,35 @@ export function ProfileSection({
                 </div>
               ) : (
                 Object.entries(pendingSuggestion.updates).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between rounded-[16px] bg-[#f8f7f2] px-4 py-3">
-                    <span className="text-[14px] text-[#8b929b]">{key}</span>
-                    <span className="text-[14px] font-semibold text-[#171717]">
-                      {Array.isArray(value) ? value.join(", ") : String(value)}
-                    </span>
+                  <div key={key} className="rounded-[16px] bg-[#f8f7f2] px-4 py-3">
+                    <label className="flex items-start gap-3">
+                      <input
+                        checked={selectedSuggestionKeys[key] ?? false}
+                        className="mt-1 h-4 w-4 rounded border-[#cfd4dc] text-green-800 focus:ring-green-700"
+                        onChange={(event) =>
+                          setSelectedSuggestionKeys((current) => ({
+                            ...current,
+                            [key]: event.target.checked,
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-medium text-[#8b929b]">
+                          {formatSuggestionLabel(key)}
+                        </p>
+                        <p className="mt-1 text-[14px] text-[#5b6067]">
+                          Change from{" "}
+                          <span className="font-semibold text-[#171717]">
+                            {formatDisplayValue(key as DraftFieldKey, draft[key as DraftFieldKey])}
+                          </span>{" "}
+                          to{" "}
+                          <span className="font-semibold text-[#171717]">
+                            {formatSuggestionValue(value)}
+                          </span>
+                        </p>
+                      </div>
+                    </label>
                   </div>
                 ))
               )}
@@ -781,18 +992,20 @@ export function ProfileSection({
                 onClick={() => {
                   setPendingSuggestion(null);
                   setPendingNote("");
+                  setSelectedSuggestionKeys({});
                 }}
                 type="button"
               >
                 Cancel
               </button>
               <button
-                className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-green-800 px-4 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-92"
-                onClick={applySuggestion}
+                className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-green-800 px-4 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={savingProfile}
+                onClick={() => void applySuggestion()}
                 type="button"
               >
-                <Check className="h-4 w-4" />
-                Confirm Updates
+                {savingProfile ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                {savingProfile ? "Saving..." : "Apply and Save"}
               </button>
             </div>
           </div>

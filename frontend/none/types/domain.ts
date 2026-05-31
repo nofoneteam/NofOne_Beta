@@ -319,6 +319,7 @@ export interface DailyGoalsSummary {
     calories: number;
     exerciseCalories: number;
     sleepCalories: number;
+    targetBurn?: number;
   };
 }
 

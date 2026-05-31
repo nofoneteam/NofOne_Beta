@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 import {
@@ -319,6 +320,21 @@ function estimateSleepCalories(hours: number, weightKg: number) {
   return Math.round(safeHours * safeWeight * 0.95);
 }
 
+function estimateExerciseBurnTarget(
+  targetMinutes: number,
+  currentExerciseCalories: number,
+  currentExerciseMinutes: number,
+) {
+  const safeTargetMinutes = Math.max(Number(targetMinutes) || 0, 0);
+  const safeCurrentMinutes = Math.max(Number(currentExerciseMinutes) || 0, 0);
+  const safeCurrentCalories = Math.max(Number(currentExerciseCalories) || 0, 0);
+
+  const caloriesPerMinute =
+    safeCurrentMinutes > 0 ? safeCurrentCalories / safeCurrentMinutes : 8;
+
+  return Math.round(safeTargetMinutes * caloriesPerMinute);
+}
+
 function getNutritionLogStorageKey(dateIso: string) {
   return `nofone:nutrition-logged:${dateIso}`;
 }
@@ -435,7 +451,7 @@ function buildProfilePayload(profile: HealthProfileWithUser): UpsertHealthProfil
     gender: profile.gender,
     height: profile.height,
     weight: profile.weight,
-    targetWeight: profile.targetWeight,
+    targetWeight: null,
     bmi: profile.bmi,
     bmiCategory: profile.bmiCategory,
     location: profile.location,
@@ -775,6 +791,16 @@ export function DashboardShell() {
   }, [loadDashboard, loadChatHistory, loadProfileData, loadWeightTracker, selectedIsoDate]);
 
   useEffect(() => {
+    if (activeSection !== "profile" || profileLoading) {
+      return;
+    }
+
+    if (!isProfileComplete(profile)) {
+      router.replace("/onboarding");
+    }
+  }, [activeSection, profile, profileLoading, router]);
+
+  useEffect(() => {
     if (user?.id && typeof window !== "undefined") {
       import("react-onesignal").then((OneSignal) => {
          OneSignal.default.login(user.id).catch(e => console.warn("OneSignal login failed", e));
@@ -850,18 +876,25 @@ export function DashboardShell() {
   const fatMetric = metricValue(effectiveDashboard, "fat");
   const waterMetric = metricValue(effectiveDashboard, "waterIntake");
   const sleepMetric = metricValue(effectiveDashboard, "sleepHours");
+  const exerciseMetric = metricValue(effectiveDashboard, "exerciseMinutes");
 
   const currentWater = Math.round(waterMetric?.current ?? 0);
   const targetWater = Math.max(1, Math.round(waterMetric?.target ?? 8));
   const currentSleep = Math.round(sleepMetric?.current ?? 0);
   const targetSleep = Math.max(1, Math.round(sleepMetric?.target ?? 8));
+  const currentWeight = Number(effectiveDashboard?.weightTracker.currentWeight) || Number(profile?.weight) || 70;
   const totalFoodCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.calories ?? 0);
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
   const totalSleepCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.sleepCalories ?? 0);
-  const remainingCalories = Math.round(
-    (caloriesMetric?.target ?? 0) - totalFoodCalories + totalExerciseCalories + totalSleepCalories
+  const totalBurntCalories = Math.max(0, totalExerciseCalories + totalSleepCalories);
+  const targetBurntCalories = goalOverrides.targetBurn ?? effectiveDashboard?.dailyGoals.rawMetrics?.targetBurn ?? Math.max(
+    0,
+    estimateExerciseBurnTarget(
+      Math.round(exerciseMetric?.target ?? 30),
+      totalExerciseCalories,
+      Math.round(exerciseMetric?.current ?? 0),
+    ) + estimateSleepCalories(targetSleep, currentWeight),
   );
-
 
   const reportNutrientCurrent = useMemo(() => {
     if (!medicalNutritionInsight) return 0;
@@ -1520,7 +1553,11 @@ export function DashboardShell() {
         description: "Your profile was saved successfully.",
         variant: "success",
       });
-      void loadProfileData();
+      await Promise.all([
+        loadProfileData(),
+        loadDashboard(selectedIsoDate),
+        loadWeightTracker(selectedIsoDate),
+      ]);
     } catch (error) {
       const message = readErrorMessage(error);
       setErrorMessage(message);
@@ -1529,6 +1566,7 @@ export function DashboardShell() {
         description: message,
         variant: "error",
       });
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       setSavingProfile(false);
     }
@@ -2086,14 +2124,12 @@ export function DashboardShell() {
                 <div className="mt-5 space-y-2 sm:space-y-3">
                   <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <CaloriesCard
-                      current={Math.round(caloriesMetric?.current ?? 0)}
-                      foodCalories={totalFoodCalories}
-                      exerciseCalories={totalExerciseCalories}
-                      sleepCalories={totalSleepCalories}
+                      burntCurrent={totalBurntCalories}
+                      burntTarget={targetBurntCalories}
+                      consumedCurrent={totalFoodCalories}
+                      consumedTarget={Math.round(caloriesMetric?.target ?? 0)}
                       loading={loading}
                       onOpenDetails={() => handleNutritionDetailsClick(() => setNutritionSummaryOpen(true))}
-                      remaining={remainingCalories}
-                      target={Math.round(caloriesMetric?.target ?? 0)}
                     />
 
                     <MacrosCard
@@ -2301,7 +2337,7 @@ export function DashboardShell() {
               foodCalories={totalFoodCalories}
               exerciseCalories={totalExerciseCalories}
               sleepCalories={totalSleepCalories}
-              remainingCalories={remainingCalories}
+              burntTargetCalories={targetBurntCalories}
               onClose={() => setNutritionSummaryOpen(false)}
             />
           ) : null}
@@ -2723,30 +2759,25 @@ function DesktopSummaryCard({
 }
 
 function CaloriesCard({
-  current,
-  exerciseCalories,
-  foodCalories,
+  burntCurrent,
+  burntTarget,
+  consumedCurrent,
+  consumedTarget,
   loading,
   onOpenDetails,
-  remaining,
-  sleepCalories,
-  target,
 }: {
-  current: number;
-  exerciseCalories: number;
-  foodCalories: number;
+  burntCurrent: number;
+  burntTarget: number;
+  consumedCurrent: number;
+  consumedTarget: number;
   loading: boolean;
   onOpenDetails: () => void;
-  remaining: number;
-  sleepCalories: number;
-  target: number;
 }) {
   if (loading) {
     return (
       <BaseCard className="p-4">
         <ShimmerLine className="h-4 w-24" />
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          <ShimmerBlock className="h-14" />
+        <div className="mt-5 grid grid-cols-2 gap-3">
           <ShimmerBlock className="h-14" />
           <ShimmerBlock className="h-14" />
         </div>
@@ -2755,23 +2786,33 @@ function CaloriesCard({
   }
 
   return (
-    <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
-    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 transition-colors hover:bg-[#e8effd] h-full">
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
-          <Flame/>
-        </TinyIconCircle>
-        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Calories</p>
+    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 h-full">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
+            <Flame />
+          </TinyIconCircle>
+          <p className="text-[13px] font-semibold text-[#111111] sm:text-[14px]">Calories</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <InfoHint
+            text="Calories consumed uses your logged food entries. Calories burnt combines exercise calories and estimated sleep burn. To change targets, go to Daily Goals to edit calories, exercise, and sleep. To recalculate your baseline targets, update your Profile."
+          />
+          <button
+            className="rounded-full px-2 py-1 text-[11px] font-semibold text-[#5d6470] transition-colors hover:bg-white/70"
+            onClick={onOpenDetails}
+            type="button"
+          >
+            Details
+          </button>
+        </div>
       </div>
 
-      <div className="mt-2 grid min-w-0 grid-cols-4 gap-1 sm:mt-3 sm:gap-2">
-        <DashboardMiniStat label="Food" value={foodCalories} unit="" />
-        <DashboardMiniStat label="Exercise" value={exerciseCalories} unit="" />
-        <DashboardMiniStat label="Sleep" value={sleepCalories} unit="" />
-        <DashboardMiniStat highlight label="Remaining" value={remaining} unit="" />
+      <div className="mt-2 grid min-w-0 grid-cols-2 gap-1 sm:mt-3 sm:gap-2">
+        <DashboardRatioMiniStat label="Consumed" current={consumedCurrent} target={consumedTarget} colorClass="bg-[#e59a3b]" trackClass="bg-[#f3eee6]" />
+        <DashboardRatioMiniStat label="Burnt" current={burntCurrent} target={burntTarget} colorClass="bg-[#5e9874]" trackClass="bg-[#e7efe9]" />
       </div>
     </BaseCard>
-    </button>
   );
 }
 
@@ -2802,13 +2843,26 @@ function MacrosCard({
   }
 
   return (
-    <button type="button" onClick={onOpenDetails} className="block w-full text-left h-full">
-    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff]  px-0 py-0 mt:p-4 transition-colors hover:bg-[#e8effd] h-full">
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
-          <Target/>
-        </TinyIconCircle>
-        <p className="text-[13px] sm:text-[14px] font-semibold text-[#111111]">Macros</p>
+    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 h-full">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
+            <Target />
+          </TinyIconCircle>
+          <p className="text-[13px] font-semibold text-[#111111] sm:text-[14px]">Macros</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <InfoHint
+            text="Macro totals come from the food items you log. Macro targets are generated from your profile and can be customized in Daily Goals. Update Profile to recalculate the baseline, then use Daily Goals for manual target changes."
+          />
+          <button
+            className="rounded-full px-2 py-1 text-[11px] font-semibold text-[#5d6470] transition-colors hover:bg-white/70"
+            onClick={onOpenDetails}
+            type="button"
+          >
+            Details
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
@@ -2817,25 +2871,38 @@ function MacrosCard({
         <DashboardRatioStat label="Fat" unit="" metric={fat} />
       </div>
     </BaseCard>
-    </button>
   );
 }
 
-function DashboardMiniStat({
+function DashboardRatioMiniStat({
+  current,
   label,
-  value,
-  unit,
-  highlight = false,
+  target,
+  colorClass,
+  trackClass,
 }: {
+  current: number;
   label: string;
-  value: number;
-  unit?: string;
-  highlight?: boolean;
+  target: number;
+  colorClass?: string;
+  trackClass?: string;
 }) {
+  const progressPercent = Math.min((current / Math.max(target, 1)) * 100, 100);
+
   return (
-    <div className="flex h-full min-w-0 flex-col items-center justify-center rounded-[8px] bg-white/70 px-1 py-1 text-center sm:rounded-[16px] sm:px-3 sm:py-3">
-      <p className={cn("w-full text-[9px] sm:text-[11px] text-[#667085]", highlight && "text-[#111111]")}>{label}</p>
-      <p className={cn("mt-0.5 w-full text-[12px] font-semibold text-[#111111] sm:text-[16px]", highlight && "sm:text-[18px]")}>{value}{unit ? ` ${unit}` : ''}</p>
+    <div className="flex h-full min-w-0 flex-col items-center justify-center rounded-[8px] bg-white/70 px-2 py-2 text-center sm:rounded-[16px] sm:px-3 sm:py-3">
+      <p className="w-full text-[9px] text-[#667085] sm:text-[11px]">{label}</p>
+      <p className="mt-0.5 w-full text-[11px] font-semibold text-[#111111] sm:text-[16px]">
+        {current}/{target}
+      </p>
+      {colorClass && trackClass && (
+        <div className={cn("mt-2 w-full h-1.5 rounded-full", trackClass)}>
+          <div
+            className={cn("h-full rounded-full transition-all duration-300", colorClass)}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -2859,17 +2926,8 @@ function DashboardRatioStat({
       </p>
 
       <p className="text-[12px] sm:text-[16px] font-semibold text-[#111111]">
-        <span className="sm:hidden">
-          {current}{unit}
-        </span>
-
-
-        <span className="hidden sm:inline">
-          {current}/{target}{unit}
-        </span>
+        {current}/{target}{unit}
       </p>
-
-     
     </div>
   );
 }
@@ -3278,27 +3336,66 @@ function InfoHint({
   text: string;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function updatePosition() {
+      const trigger = triggerRef.current;
+
+      if (!trigger) {
+        return;
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 8,
+        left: align === "start" ? rect.left : rect.right,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [align, open]);
 
   return (
-    <div className="relative shrink-0">
+    <div className={cn("relative shrink-0", open && "z-[160]")}>
       <button
         aria-label="More info"
         className="flex h-5 w-5 items-center justify-center rounded-full border border-[#d9dde3] text-[#7d848c] transition-colors hover:bg-[#f7f7f3]"
         onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
         type="button"
       >
         <Info className="h-3.5 w-3.5" />
       </button>
-      {open ? (
-        <div
-          className={cn(
-            "absolute top-7 z-20 w-44 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)] md:w-56",
-            align === "start" ? "right-0" : "right-0",
-          )}
-        >
-          {text}
-        </div>
-      ) : null}
+      {typeof document !== "undefined" && open && position
+        ? createPortal(
+            <div
+              className={cn(
+                "fixed z-[9999] w-44 rounded-[14px] border border-[#ecece7] bg-white p-3 text-[12px] leading-5 text-[#5c636b] shadow-[0_12px_30px_rgba(0,0,0,0.08)] md:w-56",
+                align === "start" ? "" : "-translate-x-full",
+              )}
+              style={{
+                top: position.top,
+                left: position.left,
+              }}
+            >
+              {text}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -4842,7 +4939,7 @@ function DailyNutritionDetailsModal({
   foodCalories,
   exerciseCalories,
   sleepCalories,
-  remainingCalories,
+  burntTargetCalories,
   onClose,
 }: {
   date: string;
@@ -4858,7 +4955,7 @@ function DailyNutritionDetailsModal({
   foodCalories: number;
   exerciseCalories: number;
   sleepCalories: number;
-  remainingCalories: number;
+  burntTargetCalories: number;
   onClose: () => void;
 }) {
   if (!details) {
@@ -4914,6 +5011,8 @@ function DailyNutritionDetailsModal({
     originalText: "",
     dishName: `Nutrition details for ${new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
   };
+  const caloriesConsumedTarget = Math.round(caloriesMetric?.target ?? 0);
+  const caloriesBurntCurrent = Math.max(0, exerciseCalories + sleepCalories);
 
   return (
     <div className="absolute inset-0 z-[80] flex items-end sm:items-center justify-center bg-[#2c2f32]/18 p-0 sm:p-4 backdrop-blur-[2px]">
@@ -4936,11 +5035,17 @@ function DailyNutritionDetailsModal({
               label="Calories"
               target={Math.round(caloriesMetric?.target ?? 0)}
             />
-            <div className="grid grid-cols-4 gap-2 self-center">
-              <DashboardMiniStat label="Food" value={foodCalories} />
-              <DashboardMiniStat label="Exercise" value={exerciseCalories} />
-              <DashboardMiniStat label="Sleep" value={sleepCalories} />
-              <DashboardMiniStat highlight label="Remaining" value={remainingCalories} />
+            <div className="grid grid-cols-2 gap-2 self-center">
+              <DashboardRatioMiniStat
+                current={foodCalories}
+                label="Consumed"
+                target={caloriesConsumedTarget}
+              />
+              <DashboardRatioMiniStat
+                current={caloriesBurntCurrent}
+                label="Burnt"
+                target={burntTargetCalories}
+              />
             </div>
           </div>
 

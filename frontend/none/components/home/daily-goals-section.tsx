@@ -79,17 +79,26 @@ export function DailyGoalsSection({
   onSaveMetric,
   scope,
   summary,
+  consumedCurrent,
+  consumedTarget,
+  burntCurrent,
+  burntTarget,
 }: {
   loading: boolean;
   onBack: () => void;
   onSaveMetric: (metricKey: GoalMetric["key"], currentValue: number) => Promise<void>;
   scope: string;
   summary: DailyGoalsSummary | null;
+  consumedCurrent?: number;
+  consumedTarget?: number;
+  burntCurrent?: number;
+  burntTarget?: number;
 }) {
   const [editingMetricKey, setEditingMetricKey] = useState<GoalMetric["key"] | null>(null);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [draftCurrent, setDraftCurrent] = useState("");
   const [draftTarget, setDraftTarget] = useState("");
+  const [draftBurnTarget, setDraftBurnTarget] = useState("");
   const [saving, setSaving] = useState(false);
   const [targetOverrides, setTargetOverrides] = useState<GoalOverrideMap>({});
 
@@ -125,6 +134,9 @@ export function DailyGoalsSection({
     setEditingMetricKey(metric.key);
     setDraftCurrent(formatMetricValue(metric.current));
     setDraftTarget(formatMetricValue(targetOverrides[metric.key] ?? metric.target));
+    if (metric.key === "calories") {
+      setDraftBurnTarget(formatMetricValue(targetOverrides["targetBurn"] ?? burntTarget ?? 0));
+    }
   }
 
   function openAddGoal() {
@@ -135,6 +147,7 @@ export function DailyGoalsSection({
     setEditingMetricKey(null);
     setDraftCurrent("");
     setDraftTarget("");
+    setDraftBurnTarget("");
   }
 
   function closeAddGoal() {
@@ -153,8 +166,13 @@ export function DailyGoalsSection({
 
     const nextCurrent = Number(draftCurrent);
     const nextTarget = Number(draftTarget);
+    const nextBurnTarget = Number(draftBurnTarget);
 
     if (!Number.isFinite(nextCurrent) || nextCurrent < 0 || !Number.isFinite(nextTarget) || nextTarget <= 0) {
+      return;
+    }
+
+    if (editingMetric.key === "calories" && (!Number.isFinite(nextBurnTarget) || nextBurnTarget <= 0)) {
       return;
     }
 
@@ -162,10 +180,14 @@ export function DailyGoalsSection({
 
     try {
       await onSaveMetric(editingMetric.key, nextCurrent);
-      persistOverrides({
+      const nextOverrides: GoalOverrideMap = {
         ...targetOverrides,
         [editingMetric.key]: nextTarget,
-      });
+      };
+      if (editingMetric.key === "calories") {
+         nextOverrides["targetBurn"] = nextBurnTarget;
+      }
+      persistOverrides(nextOverrides);
       closeEditor();
     } finally {
       setSaving(false);
@@ -213,9 +235,22 @@ export function DailyGoalsSection({
           ? Array.from({ length: 7 }, (_, index) => (
               <GoalSkeleton key={index} />
             ))
-          : effectiveMetrics.map((metric) => (
-              <GoalMetricCard key={metric.key} metric={metric} onEdit={() => openEditor(metric)} />
-            ))}
+          : effectiveMetrics.map((metric) => {
+              if (metric.key === "calories" && consumedCurrent !== undefined && burntCurrent !== undefined && consumedTarget !== undefined && burntTarget !== undefined) {
+                return (
+                  <CaloriesGoalMetricCard
+                    key={metric.key}
+                    metric={metric}
+                    onEdit={() => openEditor(metric)}
+                    consumedCurrent={consumedCurrent}
+                    consumedTarget={consumedTarget}
+                    burntCurrent={burntCurrent}
+                    burntTarget={burntTarget}
+                  />
+                );
+              }
+              return <GoalMetricCard key={metric.key} metric={metric} onEdit={() => openEditor(metric)} />
+            })}
       </div>
 
       <Card className="rounded-[24px] border-[#ecece7] bg-white shadow-[0_10px_32px_rgba(17,17,17,0.04)]">
@@ -306,16 +341,41 @@ export function DailyGoalsSection({
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[13px] font-medium text-[#545a61]">Target value</label>
-                <Input
-                  inputMode="decimal"
-                  min="0"
-                  step={DAILY_GOAL_META[editingMetric.key].step}
-                  value={draftTarget}
-                  onChange={(event) => setDraftTarget(event.target.value)}
-                />
-              </div>
+              {editingMetric.key === "calories" ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-[13px] font-medium text-[#545a61]">To Consume Target</label>
+                    <Input
+                      inputMode="decimal"
+                      min="0"
+                      step={10}
+                      value={draftTarget}
+                      onChange={(event) => setDraftTarget(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[13px] font-medium text-[#545a61]">To Burn Target</label>
+                    <Input
+                      inputMode="decimal"
+                      min="0"
+                      step={10}
+                      value={draftBurnTarget}
+                      onChange={(event) => setDraftBurnTarget(event.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-[13px] font-medium text-[#545a61]">Target value</label>
+                  <Input
+                    inputMode="decimal"
+                    min="0"
+                    step={DAILY_GOAL_META[editingMetric.key].step}
+                    value={draftTarget}
+                    onChange={(event) => setDraftTarget(event.target.value)}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">
@@ -398,6 +458,79 @@ function GoalSkeleton() {
           <div className="h-4 w-28 rounded-full bg-[#f2f0ea] shimmer" />
         </div>
         <div className="mt-4 h-2.5 rounded-full bg-[#f2f0ea] shimmer" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function CaloriesGoalMetricCard({
+  metric,
+  onEdit,
+  consumedCurrent,
+  consumedTarget,
+  burntCurrent,
+  burntTarget,
+}: {
+  metric: GoalMetric;
+  onEdit: () => void;
+  consumedCurrent: number;
+  consumedTarget: number;
+  burntCurrent: number;
+  burntTarget: number;
+}) {
+  const meta = DAILY_GOAL_META[metric.key];
+  const consumedProgressPercent = Math.min((consumedCurrent / Math.max(consumedTarget, 1)) * 100, 100);
+  const burntProgressPercent = Math.min((burntCurrent / Math.max(burntTarget, 1)) * 100, 100);
+
+  return (
+    <Card className="rounded-[24px] border-[#ecece7] bg-white shadow-[0_10px_32px_rgba(17,17,17,0.04)] transition-transform duration-200 hover:-translate-y-0.5">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className={cn("h-8.5 w-8.5 rounded-[12px]", meta.iconBg)} />
+            <p className="truncate text-[16px] font-semibold text-[#2c3136]">{metric.label}</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <p className="text-right text-[16px] font-semibold text-[#2c3136]">
+              {formatMetricValue(metric.current)}/{formatMetricValue(metric.target)} {metric.unit} <span className="text-[12px] font-normal text-[#8e949c] ml-1">Net</span>
+            </p>
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#8e949c] transition-colors hover:bg-[#f3f3ee] hover:text-[#4e545b]"
+              onClick={onEdit}
+              type="button"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <div className="flex justify-between items-center text-[12px] mb-1.5 text-[#545a61]">
+              <span>Consumed</span>
+              <span className="font-medium">{formatMetricValue(consumedCurrent)}/{formatMetricValue(consumedTarget)}</span>
+            </div>
+            <div className={cn("h-2.5 rounded-full", meta.track)}>
+              <div
+                className={cn("h-full rounded-full transition-all duration-300", meta.color)}
+                style={{ width: `${consumedProgressPercent}%` }}
+              />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[12px] mb-1.5 text-[#545a61]">
+              <span>Burnt</span>
+              <span className="font-medium">{formatMetricValue(burntCurrent)}/{formatMetricValue(burntTarget)}</span>
+            </div>
+            <div className={cn("h-2.5 rounded-full", "bg-[#e7efe9]")}>
+              <div
+                className={cn("h-full rounded-full transition-all duration-300", "bg-[#5e9874]")}
+                style={{ width: `${burntProgressPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
