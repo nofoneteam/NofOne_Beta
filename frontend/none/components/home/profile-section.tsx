@@ -182,7 +182,9 @@ function sanitizeAiSuggestionUpdates(updates: Record<string, unknown>): Partial<
       return accumulator;
     }
 
-    accumulator[key as DraftFieldKey] = value as DraftProfile[DraftFieldKey];
+    // Convert null to undefined to match field type definitions
+    const normalizedValue = value === null ? undefined : value;
+    (accumulator as any)[key] = normalizedValue;
     return accumulator;
   }, {});
 }

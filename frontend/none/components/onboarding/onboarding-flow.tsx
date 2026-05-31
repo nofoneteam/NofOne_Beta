@@ -60,7 +60,7 @@ const dietOptions = [
   { label: "Other", value: "Other" },
 ] as const;
 
-const presetDietValues = new Set(dietOptions.map((option) => option.value));
+const presetDietValues = new Set<string>(dietOptions.map((option) => option.value));
 
 function calculateBmi(weight: number, height: number) {
   const heightInMeters = height / 100;
