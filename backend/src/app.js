@@ -37,6 +37,18 @@ app.use(express.json({
     req.rawBody = buf;
   }
 }));
+
+// Temporary logging middleware
+app.use((req, res, next) => {
+  if (req.path === "/api/user/profile" && req.method === "POST") {
+    const fs = require("fs");
+    try {
+      fs.appendFileSync("/tmp/nofone-requests.log", JSON.stringify(req.body) + "\n");
+    } catch (e) {}
+  }
+  next();
+});
+
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(rateLimiter);
