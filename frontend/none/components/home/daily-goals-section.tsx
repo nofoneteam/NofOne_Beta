@@ -7,12 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  applyDailyGoalOverrides,
-  persistDailyGoalOverrides,
-  readDailyGoalOverrides,
-  type GoalOverrideMap,
-} from "@/lib/daily-goal-overrides";
 import { cn } from "@/lib/utils";
 import type { DailyGoalsSummary, GoalMetric } from "@/types/domain";
 
@@ -100,15 +94,9 @@ export function DailyGoalsSection({
   const [draftTarget, setDraftTarget] = useState("");
   const [draftBurnTarget, setDraftBurnTarget] = useState("");
   const [saving, setSaving] = useState(false);
-  const [targetOverrides, setTargetOverrides] = useState<GoalOverrideMap>({});
-
-  useEffect(() => {
-    setTargetOverrides(readDailyGoalOverrides(scope));
-  }, [scope]);
-
   const effectiveMetrics = useMemo(() => {
-    return applyDailyGoalOverrides(summary, targetOverrides)?.metrics ?? [];
-  }, [summary, targetOverrides]);
+    return summary?.metrics ?? [];
+  }, [summary]);
 
   const effectiveCompletion = useMemo(() => {
     if (!effectiveMetrics.length) {
@@ -125,18 +113,9 @@ export function DailyGoalsSection({
     [editingMetricKey, effectiveMetrics],
   );
 
-  function persistOverrides(nextOverrides: GoalOverrideMap) {
-    setTargetOverrides(nextOverrides);
-    persistDailyGoalOverrides(scope, nextOverrides);
-  }
-
   function openEditor(metric: GoalMetric) {
     setEditingMetricKey(metric.key);
     setDraftCurrent(formatMetricValue(metric.current));
-    setDraftTarget(formatMetricValue(targetOverrides[metric.key] ?? metric.target));
-    if (metric.key === "calories") {
-      setDraftBurnTarget(formatMetricValue(targetOverrides["targetBurn"] ?? burntTarget ?? 0));
-    }
   }
 
   function openAddGoal() {
@@ -146,8 +125,6 @@ export function DailyGoalsSection({
   function closeEditor() {
     setEditingMetricKey(null);
     setDraftCurrent("");
-    setDraftTarget("");
-    setDraftBurnTarget("");
   }
 
   function closeAddGoal() {
@@ -165,14 +142,8 @@ export function DailyGoalsSection({
     }
 
     const nextCurrent = Number(draftCurrent);
-    const nextTarget = Number(draftTarget);
-    const nextBurnTarget = Number(draftBurnTarget);
 
-    if (!Number.isFinite(nextCurrent) || nextCurrent < 0 || !Number.isFinite(nextTarget) || nextTarget <= 0) {
-      return;
-    }
-
-    if (editingMetric.key === "calories" && (!Number.isFinite(nextBurnTarget) || nextBurnTarget <= 0)) {
+    if (!Number.isFinite(nextCurrent) || nextCurrent < 0) {
       return;
     }
 
@@ -180,14 +151,6 @@ export function DailyGoalsSection({
 
     try {
       await onSaveMetric(editingMetric.key, nextCurrent);
-      const nextOverrides: GoalOverrideMap = {
-        ...targetOverrides,
-        [editingMetric.key]: nextTarget,
-      };
-      if (editingMetric.key === "calories") {
-         nextOverrides["targetBurn"] = nextBurnTarget;
-      }
-      persistOverrides(nextOverrides);
       closeEditor();
     } finally {
       setSaving(false);
@@ -331,7 +294,7 @@ export function DailyGoalsSection({
 
             <div className="mt-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-[13px] font-medium text-[#545a61]">Current value</label>
+                <label className="text-[13px] font-medium text-[#545a61]">Current logged amount</label>
                 <Input
                   inputMode="decimal"
                   min="0"
@@ -340,42 +303,6 @@ export function DailyGoalsSection({
                   onChange={(event) => setDraftCurrent(event.target.value)}
                 />
               </div>
-
-              {editingMetric.key === "calories" ? (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-[13px] font-medium text-[#545a61]">To Consume Target</label>
-                    <Input
-                      inputMode="decimal"
-                      min="0"
-                      step={10}
-                      value={draftTarget}
-                      onChange={(event) => setDraftTarget(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[13px] font-medium text-[#545a61]">To Burn Target</label>
-                    <Input
-                      inputMode="decimal"
-                      min="0"
-                      step={10}
-                      value={draftBurnTarget}
-                      onChange={(event) => setDraftBurnTarget(event.target.value)}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <label className="text-[13px] font-medium text-[#545a61]">Target value</label>
-                  <Input
-                    inputMode="decimal"
-                    min="0"
-                    step={DAILY_GOAL_META[editingMetric.key].step}
-                    value={draftTarget}
-                    onChange={(event) => setDraftTarget(event.target.value)}
-                  />
-                </div>
-              )}
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">

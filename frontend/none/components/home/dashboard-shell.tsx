@@ -52,7 +52,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/components/ui/toast";
 import { authApi, chatApi, logsApi, userApi } from "@/lib/api";
 import { getStoredAccessToken, logoutFrontend } from "@/lib/auth/session";
-import { applyDailyGoalOverrides, readDailyGoalOverrides } from "@/lib/daily-goal-overrides";
+
 import { getHomeSectionFromPath, HOME_SECTION_ROUTES, type HomeSectionKey } from "@/lib/home-routes";
 import { isProfileComplete } from "@/lib/profile";
 import { cn } from "@/lib/utils";
@@ -607,27 +607,8 @@ export function DashboardShell() {
 
   const weekDates = useMemo(() => buildCenteredWeek(selectedDate), [selectedDate]);
   const selectedIsoDate = useMemo(() => getIsoDate(selectedDate), [selectedDate]);
-  const [goalOverrides, setGoalOverrides] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    const scope = user?.id ?? "guest";
-    setGoalOverrides(readDailyGoalOverrides(scope));
-  }, [user?.id, pathname]);
-
-  const effectiveDailyGoals = useMemo(
-    () => applyDailyGoalOverrides(dashboard?.dailyGoals ?? null, goalOverrides),
-    [dashboard?.dailyGoals, goalOverrides],
-  );
-  const effectiveDashboard = useMemo(() => {
-    if (!dashboard || !effectiveDailyGoals) {
-      return dashboard;
-    }
-
-    return {
-      ...dashboard,
-      dailyGoals: effectiveDailyGoals,
-    };
-  }, [dashboard, effectiveDailyGoals]);
+  const effectiveDashboard = dashboard;
 
   const showErrorToast = useCallback((title: string, error: unknown) => {
     const message = readErrorMessage(error);
@@ -892,7 +873,7 @@ export function DashboardShell() {
   const totalExerciseCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.exerciseCalories ?? 0);
   const totalSleepCalories = Math.round(effectiveDashboard?.dailyGoals.rawMetrics?.sleepCalories ?? 0);
   const totalBurntCalories = Math.max(0, totalExerciseCalories + totalSleepCalories);
-  const targetBurntCalories = goalOverrides.targetBurn ?? effectiveDashboard?.dailyGoals.rawMetrics?.targetBurn ?? Math.max(
+  const targetBurntCalories = effectiveDashboard?.dailyGoals.rawMetrics?.targetBurn ?? Math.max(
     0,
     estimateExerciseBurnTarget(
       Math.round(exerciseMetric?.target ?? 30),

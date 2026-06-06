@@ -364,6 +364,19 @@ function EditableRow({
     setEditing(false);
   }
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      commit();
+    }
+  }
+
+  function handleBlur(e: React.FocusEvent) {
+    if (e.relatedTarget && (e.relatedTarget as HTMLElement).closest(".cancel-btn")) {
+      return;
+    }
+    commit();
+  }
+
   return (
     <div className="group flex items-center gap-4 border-b border-[#efeee7] py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
@@ -376,7 +389,9 @@ function EditableRow({
               <select
                 className="min-w-[156px] rounded-xl border border-[#e7e5dd] bg-[#fbfbf7] px-3 py-2 text-right text-[15px] font-semibold text-[#111111] outline-none"
                 onChange={(event) => setInputValue(event.target.value)}
+                onBlur={handleBlur}
                 value={inputValue}
+                autoFocus
               >
                 <option value="">Select</option>
                 {(options ?? []).map((option) => (
@@ -389,10 +404,13 @@ function EditableRow({
               <input
                 className="min-w-[156px] rounded-xl border border-[#e7e5dd] bg-[#fbfbf7] px-3 py-2 text-right text-[15px] font-semibold text-[#111111] outline-none"
                 onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
                 placeholder={kind === "tags" ? "e.g. peanuts, dairy" : ""}
                 step={kind === "number" ? "0.1" : undefined}
                 type={kind === "number" ? "number" : "text"}
                 value={inputValue}
+                autoFocus
               />
             )}
             <button
@@ -403,7 +421,7 @@ function EditableRow({
               <Check className="h-4 w-4" />
             </button>
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#df5b5b] transition-colors hover:bg-[#fff1f1]"
+              className="cancel-btn flex h-8 w-8 items-center justify-center rounded-full text-[#df5b5b] transition-colors hover:bg-[#fff1f1]"
               onClick={cancel}
               type="button"
             >
@@ -461,6 +479,8 @@ export function ProfileSection({
   const [draft, setDraft] = useState<DraftProfile | null>(() =>
     profile ? toDraftProfile(profile) : null,
   );
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const [noteInput, setNoteInput] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
   const [pendingSuggestion, setPendingSuggestion] = useState<ProfileAiSuggestion | null>(null);
@@ -505,9 +525,11 @@ export function ProfileSection({
       setCustomDietType("");
     }
 
-    setDraft((current) =>
-      current ? normalizeDraftProfile({ ...current, [field]: value, targetWeight: null }) : current,
-    );
+    setDraft((current) => {
+      const next = current ? normalizeDraftProfile({ ...current, [field]: value, targetWeight: null }) : current;
+      draftRef.current = next;
+      return next;
+    });
   }
 
   function applyCustomDietType(value: string) {
@@ -952,8 +974,9 @@ export function ProfileSection({
               return;
             }
 
+            const currentDraft = draftRef.current || draft;
             void onSaveProfile({
-              ...draft,
+              ...currentDraft,
               dietType: resolvedDietType,
             }).catch(() => null);
           }}
