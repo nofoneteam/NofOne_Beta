@@ -134,8 +134,55 @@ function mapHistoryToLangChainMessages(previousMessages, messageTypes) {
     );
 }
 
+const COUNT_WORD_TO_NUMBER = {
+  a: 1,
+  an: 1,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+
+function extractQuantityHint(text = "") {
+  const normalizedText = String(text || "").trim().toLowerCase();
+
+  if (!normalizedText) {
+    return "";
+  }
+
+  const quantityMatch = normalizedText.match(
+    /\b(\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(plates?|bowls?|servings?|pieces?|pcs|dosas?|idlis?|rotis?|chapatis?|parathas?|samosas?|bhaturas?|eggs?|bananas?)\b/i
+  );
+
+  if (!quantityMatch) {
+    return "";
+  }
+
+  const rawCount = quantityMatch[1].toLowerCase();
+  const count =
+    COUNT_WORD_TO_NUMBER[rawCount] != null
+      ? COUNT_WORD_TO_NUMBER[rawCount]
+      : Number(rawCount);
+  const unit = quantityMatch[2];
+
+  if (!Number.isFinite(count) || count <= 0) {
+    return "";
+  }
+
+  return `Detected quantity hint: ${count} ${unit}. Scale the nutrition approximately in proportion to this quantity. For example, 2 plates should be about 2x one standard plate unless the user explicitly describes a different portion size.`;
+}
+
 function buildUserPrompt(payload, memoryBlock = "") {
   const sections = [];
+  const quantityHint = extractQuantityHint(payload.message);
 
   if (payload.type === "image") {
     sections.push(
@@ -146,12 +193,16 @@ function buildUserPrompt(payload, memoryBlock = "") {
           "Analyze this image for food, supplements, tablet labels, calories, macros, micronutrients, ingredients, or fitness relevance only. If the image is unclear, ask for a clearer image or ask the user to type what they ate or took."
         }`,
         `Image URL: ${payload.imageUrl}`,
+        quantityHint,
         "Use the image-analysis tool to analyze the image for health, nutrition, supplements, tablet labels, macros, micronutrients, meal composition, or fitness relevance. If the label or meal is unreadable, ask for a clearer image or a typed entry instead of guessing.",
       ].join("\n")
     );
   } else {
     // Current user message always comes first so the model addresses it before any historical context.
     sections.push(payload.message);
+    if (quantityHint) {
+      sections.push(quantityHint);
+    }
   }
 
   if (memoryBlock) {
@@ -233,6 +284,10 @@ CONSISTENCY RULES:
 - Net Carbs MUST equal Total Carbs - Dietary Fibre - Sugar Alcohols.
 - Total fat MUST equal Saturated Fat + Trans Fat + Polyunsaturated Fat + Monounsaturated Fat + Other Fat.
 - Added Sugars must never exceed Sugar.
+- Quantity scaling MUST be realistic and roughly proportional. If the user mentions or the image shows 2 of the same item, estimate about 2x one item unless the visible portion size is clearly smaller.
+- For repeated dishes like 2 chole bhature, 2 dosas, or 3 samosas, count the visible number of pieces/plates and scale from one standard item instead of inflating the meal as if each item were an oversized combo platter.
+- When multiple items are present, total the clearly visible items once each. Do not double-count the same curry, bread, or side dish.
+- If quantity is ambiguous, prefer a conservative realistic estimate and explain the assumption briefly.
 - If a value is truly negligible, write 0 in the same format.
 - If the image shows a supplement, vitamin, mineral, capsule strip, or tablet bottle/box, treat it as a valid nutrition log item.
 - For supplement images, you may use "Supplement Name" instead of "Dish Name", but still include the same structured nutrient lines so the app can log micronutrients.

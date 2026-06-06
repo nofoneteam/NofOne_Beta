@@ -145,9 +145,7 @@ OTP_ALLOW_DEV_FALLBACK=true
 RESEND_API_KEY=your-resend-api-key
 RESEND_FROM_EMAIL=Acme <onboarding@resend.dev>
 
-TWILIO_ACCOUNT_SID=your-twilio-account-sid
-TWILIO_AUTH_TOKEN=your-twilio-auth-token
-TWILIO_PHONE_NUMBER=+1234567890
+
 ```
 
 Important:

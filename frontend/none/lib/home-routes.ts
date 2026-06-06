@@ -4,7 +4,6 @@ export const HOME_SECTION_ROUTES = {
   weekly: "/home/weekly-summary",
   weight: "/home/weight-tracker",
   profile: "/home/profile",
-  reminders: "/home/reminders",
   referral: "/home/referral-code",
   terms: "/home/terms-privacy",
   support: "/home/feedback-support",
@@ -25,8 +24,6 @@ export function getHomeSectionFromPath(pathname: string): HomeSectionKey {
       return "weight";
     case "/home/profile":
       return "profile";
-    case "/home/reminders":
-      return "reminders";
     case "/home/referral-code":
       return "referral";
     case "/home/terms-privacy":

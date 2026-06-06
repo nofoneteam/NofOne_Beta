@@ -43,7 +43,8 @@ import { PlaceholderSection } from "@/components/home/placeholder-section";
 import { ProfileSection } from "@/components/home/profile-section";
 import { SettingsSection } from "@/components/home/settings-section";
 import { WeeklySummarySection } from "@/components/home/weekly-summary-section";
-import { ReminderSection } from "@/components/home/reminder-section";
+import { SupportSection } from "@/components/home/support-section";
+import { TermsSection } from "@/components/home/terms-section";
 import { WeightTrackerSection } from "@/components/home/weight-tracker-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -106,7 +107,6 @@ const primarySidebarItems: SidebarItem[] = [
   { key: "weekly", id: "weekly", label: "Weekly Summary", icon: <ChartColumn className="h-4.25 w-4.25" /> },
   { key: "weight", id: "weight", label: "Weight Tracker", icon: <Scale className="h-4.25 w-4.25" /> },
   { key: "profile", id: "profile", label: "Profile", icon: <UserRound className="h-4.25 w-4.25" /> },
-  { key: "reminders", id: "reminders", label: "Reminders", icon: <Bell className="h-4.25 w-4.25" /> },
 ];
 
 const secondarySidebarItems: SidebarItem[] = [
@@ -452,6 +452,11 @@ function buildProfilePayload(profile: HealthProfileWithUser): UpsertHealthProfil
     height: profile.height,
     weight: profile.weight,
     targetWeight: null,
+    targetCalories: profile.targetCalories ?? null,
+    targetBurn: profile.targetBurn ?? null,
+    targetCarbs: profile.targetCarbs ?? null,
+    targetProtein: profile.targetProtein ?? null,
+    targetFat: profile.targetFat ?? null,
     bmi: profile.bmi,
     bmiCategory: profile.bmiCategory,
     location: profile.location,
@@ -1977,8 +1982,6 @@ export function DashboardShell() {
                       <div className="text-[15px] font-semibold text-[#111111]">Weekly Summary</div>
                     ) : activeSection === "weight" ? (
                       <div className="text-[15px] font-semibold text-[#111111]">Weight Tracker</div>
-                    ) : activeSection === "reminders" ? (
-                      <div className="text-[15px] font-semibold text-[#111111]">Reminders</div>
                     ) : activeSection === "referral" ? (
                       <div className="text-[15px] font-semibold text-[#111111]">Referral Code</div>
                     ) : activeSection === "terms" ? (
@@ -2074,10 +2077,6 @@ export function DashboardShell() {
                     summary={weightTracker}
                   />
                 </div>
-              ) : activeSection === "reminders" ? (
-                <div className="mt-2">
-                  <ReminderSection onBack={handleWeeklyBack} />
-                </div>
               ) : activeSection === "referral" ? (
                 <div className="mt-2">
                   <ReferralSection
@@ -2097,17 +2096,11 @@ export function DashboardShell() {
                 </div>
               ) : activeSection === "terms" ? (
                 <div className="mt-2">
-                  <PlaceholderSection
-                    onBack={handleWeeklyBack}
-                    title="Terms & Privacy"
-                  />
+                  <TermsSection onBack={handleWeeklyBack} />
                 </div>
               ) : activeSection === "support" ? (
                 <div className="mt-2">
-                  <PlaceholderSection
-                    onBack={handleWeeklyBack}
-                    title="Feedback & Support"
-                  />
+                  <SupportSection onBack={handleWeeklyBack} />
                 </div>
               ) : activeSection === "settings" ? (
                 <div className="mt-2">

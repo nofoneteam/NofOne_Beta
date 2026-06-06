@@ -188,8 +188,9 @@ function sanitizeAiSuggestionUpdates(updates: Record<string, unknown>): Partial<
     }
 
     // Convert null to undefined to match field type definitions
+    const typedKey = key as DraftFieldKey;
     const normalizedValue = value === null ? undefined : value;
-    (accumulator as any)[key] = normalizedValue;
+    accumulator[typedKey] = normalizedValue as DraftProfile[typeof typedKey];
     return accumulator;
   }, {});
 }
@@ -387,6 +388,7 @@ function EditableRow({
               <input
                 className="min-w-[156px] rounded-xl border border-[#e7e5dd] bg-[#fbfbf7] px-3 py-2 text-right text-[15px] font-semibold text-[#111111] outline-none"
                 onChange={(event) => setInputValue(event.target.value)}
+                placeholder={kind === "tags" ? "e.g. peanuts, dairy" : ""}
                 step={kind === "number" ? "0.1" : undefined}
                 type={kind === "number" ? "number" : "text"}
                 value={inputValue}
@@ -891,6 +893,14 @@ export function ProfileSection({
       <SectionCard title="Activity & Goals">
         <EditableRow field="activityLevel" kind="select" label="Activity Level" onApply={applyField} options={activityOptions} value={draft.activityLevel} />
         <EditableRow field="goal" kind="select" label="Goal" onApply={applyField} options={goalOptions} value={draft.goal} />
+      </SectionCard>
+
+      <SectionCard title="Daily Goal Targets">
+        <EditableRow field="targetCalories" kind="number" label="Calories Target" onApply={applyField} value={draft.targetCalories} />
+        <EditableRow field="targetBurn" kind="number" label="Burn Target" onApply={applyField} value={draft.targetBurn} />
+        <EditableRow field="targetCarbs" kind="number" label="Carbs Target (g)" onApply={applyField} value={draft.targetCarbs} />
+        <EditableRow field="targetProtein" kind="number" label="Protein Target (g)" onApply={applyField} value={draft.targetProtein} />
+        <EditableRow field="targetFat" kind="number" label="Fat Target (g)" onApply={applyField} value={draft.targetFat} />
       </SectionCard>
 
       <SectionCard title="Health Conditions">

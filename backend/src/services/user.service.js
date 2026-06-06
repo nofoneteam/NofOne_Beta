@@ -54,6 +54,40 @@ const KNOWN_DIET_TYPES = [
   "Kosher",
   "Intermittent Fasting",
 ];
+const COMMAND_OR_GOAL_PATTERNS = [
+  /\btraining\b/i,
+  /\bmarathon\b/i,
+  /\bcompetition\b/i,
+  /\bdaily goals?\b/i,
+  /\bset my\b/i,
+  /\bwant my\b/i,
+  /\bprofile\b/i,
+  /\bgoal\b/i,
+  /\bactivity\b/i,
+  /\bdeadlift\b/i,
+];
+const COMMON_ALLERGEN_TERMS = new Set([
+  "peanut",
+  "peanuts",
+  "tree nuts",
+  "nuts",
+  "almonds",
+  "cashews",
+  "walnuts",
+  "milk",
+  "dairy",
+  "lactose",
+  "soy",
+  "gluten",
+  "wheat",
+  "egg",
+  "eggs",
+  "shellfish",
+  "shrimp",
+  "prawn",
+  "fish",
+  "sesame",
+]);
 
 function mergeStringLists(...lists) {
   return Array.from(
@@ -81,6 +115,112 @@ function extractDelimitedList(note, patterns) {
   }
 
   return [];
+}
+
+function mergeConditionStrings(...values) {
+  const parts = Array.from(
+    new Set(
+      values
+        .flatMap((value) =>
+          String(value || "")
+            .split(/,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean)
+        )
+    )
+  );
+
+  return parts.length ? parts.join(", ") : undefined;
+}
+
+function isCommandOrGoalPhrase(value) {
+  return COMMAND_OR_GOAL_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function sanitizeProfileListItems(value, kind) {
+  if (!Array.isArray(value)) {
+    return {
+      items: undefined,
+      reroutedConditions: [],
+    };
+  }
+
+  const cleanedItems = [];
+  const reroutedConditions = [];
+
+  for (const rawItem of value) {
+    const item = String(rawItem || "")
+      .trim()
+      .replace(/^[,.\s]+|[,.\s]+$/g, "");
+
+    if (!item) {
+      continue;
+    }
+
+    const lowerItem = item.toLowerCase();
+
+    if (isCommandOrGoalPhrase(lowerItem)) {
+      continue;
+    }
+
+    if (kind === "allergies" && /\bintolerant\b|\bintolerance\b/.test(lowerItem)) {
+      reroutedConditions.push(item);
+      continue;
+    }
+
+    if (item.length > 40 && !/\bfree\b/.test(lowerItem)) {
+      continue;
+    }
+
+    cleanedItems.push(item);
+  }
+
+  return {
+    items: cleanedItems.length ? cleanedItems.slice(0, 20) : undefined,
+    reroutedConditions,
+  };
+}
+
+function extractShorthandProfileUpdates(note) {
+  const segments = String(note || "")
+    .split(/,|\n/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (!segments.length) {
+    return {};
+  }
+
+  const nextUpdates = {};
+  const shorthandAllergies = [];
+  const shorthandConditions = [];
+
+  for (const segment of segments) {
+    const lowerSegment = segment.toLowerCase();
+
+    if (isCommandOrGoalPhrase(lowerSegment)) {
+      continue;
+    }
+
+    if (/\bintolerant\b|\bintolerance\b/.test(lowerSegment)) {
+      shorthandConditions.push(segment);
+      continue;
+    }
+
+    if (COMMON_ALLERGEN_TERMS.has(lowerSegment)) {
+      shorthandAllergies.push(segment);
+    }
+  }
+
+  if (shorthandAllergies.length) {
+    nextUpdates.allergies = shorthandAllergies;
+  }
+
+  if (shorthandConditions.length) {
+    nextUpdates.otherConditions = shorthandConditions.join(", ");
+  }
+
+  return nextUpdates;
 }
 
 function normalizeGoalValue(value, note = "") {
@@ -235,6 +375,22 @@ function extractRuleBasedProfileUpdates(note) {
     nextUpdates.goal = "maintain";
   }
 
+  const shorthandUpdates = extractShorthandProfileUpdates(normalizedNote);
+
+  if (shorthandUpdates.allergies?.length) {
+    nextUpdates.allergies = mergeStringLists(
+      nextUpdates.allergies,
+      shorthandUpdates.allergies
+    );
+  }
+
+  if (shorthandUpdates.otherConditions) {
+    nextUpdates.otherConditions = mergeConditionStrings(
+      nextUpdates.otherConditions,
+      shorthandUpdates.otherConditions
+    );
+  }
+
   return nextUpdates;
 }
 
@@ -316,14 +472,23 @@ function sanitizeProfileAiUpdates(updates, note) {
     }
   }
 
-  const allergies = normalizeStringArray(updates.allergies);
-  if (allergies !== undefined) {
-    nextUpdates.allergies = allergies;
+  const allergyResult = sanitizeProfileListItems(updates.allergies, "allergies");
+  if (allergyResult.items !== undefined) {
+    nextUpdates.allergies = allergyResult.items;
   }
 
-  const foodDislikes = normalizeStringArray(updates.foodDislikes);
-  if (foodDislikes !== undefined) {
-    nextUpdates.foodDislikes = foodDislikes;
+  const dislikeResult = sanitizeProfileListItems(updates.foodDislikes, "foodDislikes");
+  if (dislikeResult.items !== undefined) {
+    nextUpdates.foodDislikes = dislikeResult.items;
+  }
+
+  const reroutedConditions = mergeConditionStrings(
+    nextUpdates.otherConditions,
+    allergyResult.reroutedConditions,
+    dislikeResult.reroutedConditions
+  );
+  if (reroutedConditions) {
+    nextUpdates.otherConditions = reroutedConditions;
   }
 
   return nextUpdates;
