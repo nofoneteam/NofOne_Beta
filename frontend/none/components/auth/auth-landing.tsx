@@ -324,6 +324,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
+              {/*
               <button
                 type="button"
                 onClick={() => {
@@ -339,6 +340,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                     : "Continue with Google"}
                 </span>
               </button>
+              */}
               <div className="grid grid-cols-2 gap-3">
                 {/*
                 <button
