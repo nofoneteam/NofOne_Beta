@@ -225,9 +225,9 @@ function toDraftProfile(profile: HealthProfileWithUser): DraftProfile {
     cancerSurvivor: profile.cancerSurvivor,
     hrt: profile.hrt,
     otherConditions: profile.otherConditions,
-    allergies: Array.isArray(profile.allergies) ? profile.allergies : profile.allergies ? [String(profile.allergies)] : [],
-    foodDislikes: Array.isArray(profile.foodDislikes) ? profile.foodDislikes : profile.foodDislikes ? [String(profile.foodDislikes)] : [],
-    aiNotes: Array.isArray(profile.aiNotes) ? profile.aiNotes : profile.aiNotes ? [String(profile.aiNotes)] : [],
+    allergies: (Array.isArray(profile.allergies) ? profile.allergies : profile.allergies ? [String(profile.allergies)] : []).filter((item): item is string => typeof item === "string" && item.trim().length > 0),
+    foodDislikes: (Array.isArray(profile.foodDislikes) ? profile.foodDislikes : profile.foodDislikes ? [String(profile.foodDislikes)] : []).filter((item): item is string => typeof item === "string" && item.trim().length > 0),
+    aiNotes: (Array.isArray(profile.aiNotes) ? profile.aiNotes : profile.aiNotes ? [String(profile.aiNotes)] : []).filter((item): item is string => typeof item === "string" && item.trim().length > 0),
   });
 }
 
