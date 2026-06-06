@@ -495,6 +495,9 @@ function sanitizeProfileAiUpdates(updates, note) {
 }
 
 async function upsertHealthProfile(userId, payload) {
+  console.log(`[Profile Update] Starting profile update for user: ${userId}`);
+  console.log(`[Profile Update] Incoming payload:`, JSON.stringify(payload, null, 2));
+
   const db = getFirestore();
   const userSnapshot = await db.collection(UserModel.collectionName).doc(userId).get();
   const user = serializeDocument(userSnapshot);
@@ -511,7 +514,10 @@ async function upsertHealthProfile(userId, payload) {
     existingProfile.exists ? existingProfile.data() : null
   );
 
+  console.log(`[Profile Update] Computed DB payload:`, JSON.stringify(profilePayload, null, 2));
+
   await profileRef.set(profilePayload, { merge: true });
+  console.log(`[Profile Update] Successfully saved profile for user: ${userId}`);
   // Once the user has saved their health profile, the frontend can treat onboarding as complete.
   const userUpdatePayload = {
     onboarded: true,

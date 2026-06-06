@@ -27,13 +27,7 @@ const healthProfileRules = [
   body("otherConditions").optional({ nullable: true }),
   body("allergies").optional({ nullable: true }),
   body("foodDislikes").optional({ nullable: true }),
-  body("aiNotes")
-    .optional({ nullable: true })
-    .isArray()
-    .withMessage("aiNotes must be an array")
-    .bail()
-    .custom((notes) => notes.every((note) => typeof note === "string"))
-    .withMessage("aiNotes must be an array of strings"),
+  body("aiNotes").optional({ nullable: true }),
 ];
 
 const chatPreferencesRules = [

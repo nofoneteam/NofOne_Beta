@@ -327,9 +327,9 @@ function MetricStat({
   value: string;
 }) {
   return (
-    <div className="px-4 text-center">
-      <p className={cn("text-[40px] font-semibold leading-none", tone)}>{value}</p>
-      <p className="mt-2 text-[14px] text-[#8d949c]">{label}</p>
+    <div className="px-2 sm:px-4 text-center flex flex-col items-center justify-center">
+      <p className={cn("text-[28px] sm:text-[40px] font-semibold leading-none truncate w-full", tone)}>{value}</p>
+      <p className="mt-2 text-[11px] sm:text-[14px] text-[#8d949c] leading-tight">{label}</p>
     </div>
   );
 }
