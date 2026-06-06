@@ -2779,7 +2779,7 @@ function CaloriesCard({
   }
 
   return (
-    <BaseCard className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 h-full">
+    <BaseCard onClick={onOpenDetails} className="animate-fade-up border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 h-full">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 sm:gap-2">
           <TinyIconCircle bg="bg-[#fff0dd]" text="text-[#f1ad60]">
@@ -2791,13 +2791,13 @@ function CaloriesCard({
           <InfoHint
             text="Calories consumed uses your logged food entries. Calories burnt combines exercise calories and estimated sleep burn. To change targets, go to Daily Goals to edit calories, exercise, and sleep. To recalculate your baseline targets, update your Profile."
           />
-          <button
+          {/* <button
             className="rounded-full px-2 py-1 text-[11px] font-semibold text-[#5d6470] transition-colors hover:bg-white/70"
             onClick={onOpenDetails}
             type="button"
           >
             Details
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -2836,7 +2836,7 @@ function MacrosCard({
   }
 
   return (
-    <BaseCard className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 h-full">
+    <BaseCard onClick={onOpenDetails} className="animate-fade-up animation-delay-1 border-[#dfe6f3] bg-[#eef3ff] px-0 py-0 mt:p-4 h-full">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 sm:gap-2">
           <TinyIconCircle bg="bg-[#ffe9ef]" text="text-[#e07c9f]">
@@ -2848,13 +2848,13 @@ function MacrosCard({
           <InfoHint
             text="Macro totals come from the food items you log. Macro targets are generated from your profile and can be customized in Daily Goals. Update Profile to recalculate the baseline, then use Daily Goals for manual target changes."
           />
-          <button
+          {/* <button
             className="rounded-full px-2 py-1 text-[11px] font-semibold text-[#5d6470] transition-colors hover:bg-white/70"
             onClick={onOpenDetails}
             type="button"
           >
             Details
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -3366,7 +3366,10 @@ function InfoHint({
       <button
         aria-label="More info"
         className="flex h-5 w-5 items-center justify-center rounded-full border border-[#d9dde3] text-[#7d848c] transition-colors hover:bg-[#f7f7f3]"
-        onClick={() => setOpen((current) => !current)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((current) => !current);
+        }}
         ref={triggerRef}
         type="button"
       >
@@ -4144,14 +4147,18 @@ function ReportModal({
 function BaseCard({
   children,
   className,
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <Card
+      onClick={onClick}
       className={cn(
         "rounded-[22px] border-[#efefe9] bg-white shadow-[0_10px_22px_rgba(0,0,0,0.03)]",
+        onClick && "cursor-pointer transition-colors hover:bg-gray-50/50",
         className,
       )}
     >
