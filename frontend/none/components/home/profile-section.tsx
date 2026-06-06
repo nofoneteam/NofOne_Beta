@@ -183,14 +183,15 @@ function normalizeDraftProfile(draft: DraftProfile): DraftProfile {
 
 function sanitizeAiSuggestionUpdates(updates: Record<string, unknown>): Partial<DraftProfile> {
   return Object.entries(updates).reduce<Partial<DraftProfile>>((accumulator, [key, value]) => {
-    if (!aiUpdatableFields.has(key as DraftFieldKey)) {
+    const typedKey = key as DraftFieldKey;
+    if (!aiUpdatableFields.has(typedKey)) {
       return accumulator;
     }
 
     // Convert null to undefined to match field type definitions
-    const typedKey = key as DraftFieldKey;
     const normalizedValue = value === null ? undefined : value;
-    accumulator[typedKey] = normalizedValue as DraftProfile[typeof typedKey];
+    (accumulator as Record<DraftFieldKey, DraftProfile[DraftFieldKey]>)[typedKey] =
+      normalizedValue as DraftProfile[DraftFieldKey];
     return accumulator;
   }, {});
 }
