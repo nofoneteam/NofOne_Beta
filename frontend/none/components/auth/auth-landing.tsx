@@ -324,7 +324,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
-              <button
+              {/* <button
                 type="button"
                 onClick={() => {
                   void handleGoogleAuth();
@@ -338,7 +338,7 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                     ? "Connecting..."
                     : "Continue with Google"}
                 </span>
-              </button>
+              </button> */}
               <div className="grid grid-cols-2 gap-3">
                 {/*
                 <button
