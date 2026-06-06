@@ -532,8 +532,10 @@ export function ProfileSection({
       ...draft,
       ...sanitizeAiSuggestionUpdates(selectedUpdates),
       aiNotes: pendingNote
-        ? Array.from(new Set([...(draft.aiNotes ?? []), pendingNote]))
-        : draft.aiNotes,
+        ? Array.from(new Set([...(Array.isArray(draft.aiNotes) ? draft.aiNotes : []), pendingNote]))
+        : Array.isArray(draft.aiNotes)
+        ? draft.aiNotes
+        : [],
       targetWeight: null,
     } as DraftProfile);
 
