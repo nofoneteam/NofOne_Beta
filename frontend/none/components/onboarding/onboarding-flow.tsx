@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mic, Send, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { authApi, userApi } from "@/lib/api";
 import { getStoredAccessToken } from "@/lib/auth/session";
 import { isProfileComplete } from "@/lib/profile";
 import type { UpsertHealthProfilePayload } from "@/types/api";
-import type { HealthProfileWithUser } from "@/types/domain";
+import type { HealthProfileWithUser, ProfileAiSuggestion } from "@/types/domain";
 
 const activityOptions = [
   { label: "Sedentary", value: "sedentary" },
@@ -22,6 +22,29 @@ const activityOptions = [
   { label: "Active", value: "active" },
   { label: "Very Active", value: "very_active" },
 ] as const;
+
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal?: boolean;
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 const goalOptions = [
   { label: "Lose Weight", value: "lose_weight" },
@@ -98,6 +121,16 @@ export function OnboardingFlow() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<HealthProfileWithUser | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [note, setNote] = useState("");
+  const [analyzingAi, setAnalyzingAi] = useState(false);
+  const [suggestion, setSuggestion] = useState<ProfileAiSuggestion | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [acceptedAiNote, setAcceptedAiNote] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     name: "",
     age: "",
@@ -163,6 +196,13 @@ export function OnboardingFlow() {
     void load();
   }, [router]);
 
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+    };
+  }, []);
+
   const bmiPreview = useMemo(() => {
     const height = Number(form.height);
     const weight = Number(form.weight);
@@ -183,7 +223,139 @@ export function OnboardingFlow() {
     };
   }, [form.height, form.weight]);
 
+  async function handleAiSubmit() {
+    if ((!note.trim() && !liveTranscript.trim()) || analyzingAi) return;
+    const token = getStoredAccessToken();
+    if (!token) return;
+
+    setAnalyzingAi(true);
+    setAiError(null);
+    try {
+      const response = await userApi.getProfileAiSuggestion({ note: note.trim() || liveTranscript.trim() }, token);
+      setSuggestion(response.data);
+      setForm(current => {
+        const next = { ...current };
+        if (response.data.updates.city) next.city = String(response.data.updates.city);
+        if (response.data.updates.activityLevel) next.activityLevel = response.data.updates.activityLevel as any;
+        if (response.data.updates.goal) next.goal = response.data.updates.goal as any;
+        if (response.data.updates.dietType) {
+          const dt = String(response.data.updates.dietType);
+          if (presetDietValues.has(dt)) {
+             next.dietType = dt;
+             next.dietTypeOther = "";
+          } else {
+             next.dietType = "Other";
+             next.dietTypeOther = dt;
+          }
+        }
+        return next;
+      });
+      setAcceptedAiNote(note.trim() || liveTranscript.trim());
+      setNote("");
+      setLiveTranscript("");
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Failed to analyze note.");
+    } finally {
+      setAnalyzingAi(false);
+    }
+  }
+
+  function handleSpeechUnavailable(message: string) {
+    toast({
+      title: "Voice input unavailable",
+      description: message,
+      variant: "error",
+    });
+  }
+
+  function handleMicToggle() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+
+    const RecognitionConstructor =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!RecognitionConstructor) {
+      handleSpeechUnavailable("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    if (!recognitionRef.current) {
+      try {
+        const recognition = new RecognitionConstructor();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
+          let currentTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            const transcriptSegment = event.results[i]?.[0]?.transcript ?? "";
+            currentTranscript += transcriptSegment;
+          }
+
+          setLiveTranscript(currentTranscript);
+        };
+
+        recognition.onerror = (event: { error?: string }) => {
+          if (event.error !== "no-speech") {
+            setIsListening(false);
+            handleSpeechUnavailable(
+              "Microphone access was denied or failed. Please check your permissions.",
+            );
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      } catch {
+        handleSpeechUnavailable("Could not initialize speech recognition.");
+        return;
+      }
+    }
+
+    try {
+      setLiveTranscript("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch {
+      setIsListening(false);
+      handleSpeechUnavailable("Please allow microphone access to use voice input.");
+    }
+  }
+
+  function nextStep() {
+    if (!form.name || !form.age || !form.height || !form.weight) {
+      toast({
+        title: "Missing fields",
+        description: "Please complete your name and core health details before continuing.",
+        variant: "error",
+      });
+      return;
+    }
+    setStep(2);
+  }
+
   function handleBack() {
+    if (step === 2) {
+      setStep(1);
+      return;
+    }
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
@@ -247,7 +419,7 @@ export function OnboardingFlow() {
         dietType: resolvedDietType || null,
         allergies: profile?.allergies ?? [],
         foodDislikes: profile?.foodDislikes ?? [],
-        aiNotes: profile?.aiNotes ?? [],
+        aiNotes: acceptedAiNote ? [...(profile?.aiNotes ?? []), acceptedAiNote] : (profile?.aiNotes ?? []),
       };
 
       await userApi.saveProfile(payload, token);
@@ -342,7 +514,7 @@ export function OnboardingFlow() {
                   </h2>
                 </div>
                 <div className="rounded-full bg-[#edf5ee] px-3 py-1 text-[12px] font-semibold text-[#699772]">
-                  Step 1 of 1
+                  {`Step ${step} of 2`}
                 </div>
               </div>
 
@@ -356,151 +528,225 @@ export function OnboardingFlow() {
                 </div>
               </div>
 
-              <form className="mt-2 space-y-5" onSubmit={handleSubmit}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Name">
-                    <Input
-                      onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="eg. Alex John"
-                      type="text"
-                      value={form.name}
-                    />
-                  </Field>
-                  <Field label="Age">
-                    <Input
-                      min="1"
-                      onChange={(event) => setForm((current) => ({ ...current, age: event.target.value }))}
-                      placeholder="28"
-                      type="number"
-                      value={form.age}
-                    />
-                  </Field>
-                </div>
+              {step === 1 ? (
+                <div className="mt-2 space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Name">
+                      <Input
+                        onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                        placeholder="eg. Alex John"
+                        type="text"
+                        value={form.name}
+                      />
+                    </Field>
+                    <Field label="Age">
+                      <Input
+                        min="1"
+                        onChange={(event) => setForm((current) => ({ ...current, age: event.target.value }))}
+                        placeholder="28"
+                        type="number"
+                        value={form.age}
+                      />
+                    </Field>
+                  </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Gender">
-                    <select
-                      className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                      onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value }))}
-                      value={form.gender}
-                    >
-                      <option value="">Select gender</option>
-                      {genderOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Gender">
+                      <select
+                        className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
+                        onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value }))}
+                        value={form.gender}
+                      >
+                        <option value="">Select gender</option>
+                        {genderOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Height (cm)">
-                    <Input
-                      min="1"
-                      onChange={(event) => setForm((current) => ({ ...current, height: event.target.value }))}
-                      placeholder="175"
-                      type="number"
-                      value={form.height}
-                    />
-                  </Field>
-                  <Field label="Weight (kg)">
-                    <Input
-                      min="1"
-                      onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
-                      placeholder="71.5"
-                      step="0.1"
-                      type="number"
-                      value={form.weight}
-                    />
-                  </Field>
-                </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Height (cm)">
+                      <Input
+                        min="1"
+                        onChange={(event) => setForm((current) => ({ ...current, height: event.target.value }))}
+                        placeholder="175"
+                        type="number"
+                        value={form.height}
+                      />
+                    </Field>
+                    <Field label="Weight (kg)">
+                      <Input
+                        min="1"
+                        onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
+                        placeholder="71.5"
+                        step="0.1"
+                        type="number"
+                        value={form.weight}
+                      />
+                    </Field>
+                  </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="City">
-                    <Input
-                      onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                      placeholder="Bengaluru"
-                      value={form.city}
-                    />
-                  </Field>
-                  <div className="hidden sm:block" />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Activity Level">
-                    <select
-                      className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                      onChange={(event) => setForm((current) => ({ ...current, activityLevel: event.target.value }))}
-                      value={form.activityLevel}
-                    >
-                      {activityOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Goal">
-                    <select
-                      className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                      onChange={(event) => setForm((current) => ({ ...current, goal: event.target.value }))}
-                      value={form.goal}
-                    >
-                      {goalOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-
-                <Field label="Diet Type">
-                  <select
-                    className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        dietType: event.target.value,
-                        dietTypeOther: event.target.value === "Other" ? current.dietTypeOther : "",
-                      }))
-                    }
-                    value={form.dietType}
+                  <Button
+                    className="mt-4 h-12 w-full rounded-2xl bg-green-800 text-[15px] font-semibold text-white hover:bg-[#5d8666]"
+                    onClick={nextStep}
+                    type="button"
                   >
-                    <option value="">Select diet type</option>
-                    {dietOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                {form.dietType === "Other" ? (
-                  <Field label="Other Diet Type">
-                    <Input
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, dietTypeOther: event.target.value }))
-                      }
-                      placeholder="Tell us your diet type"
-                      type="text"
-                      value={form.dietTypeOther}
-                    />
-                  </Field>
-                ) : null}
-
-                <div className="rounded-[20px] border border-[#edf0e8] bg-[#fafaf7] px-4 py-4 text-[14px] leading-6 text-[#67707a]">
-                  Your dashboard will be generated from these values, and you can refine everything later from Profile
+                    Next: Set Goals
+                  </Button>
                 </div>
+              ) : (
+                <div className="mt-2 space-y-5">
+                  <div className="rounded-[24px] border border-green-200 bg-green-50/50 p-5">
+                    <h3 className="text-[16px] font-semibold text-green-950">AI Setup</h3>
+                    <p className="mt-1 text-[14px] text-green-800">
+                      Tell us about your lifestyle, where you live, and your goals. Our AI will configure the rest!
+                    </p>
+                    <div className="mt-4 flex items-end gap-3">
+                      <div className="flex-1">
+                        <Input
+                          placeholder="e.g. I live in Bengaluru, trying to run a marathon..."
+                          value={isListening ? liveTranscript : note}
+                          onChange={(e) => setNote(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleAiSubmit();
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+                            isListening
+                              ? "bg-red-50 text-red-600 hover:bg-red-100"
+                              : "bg-white text-green-700 hover:bg-green-50 shadow-sm border border-green-200"
+                          }`}
+                          onClick={handleMicToggle}
+                          type="button"
+                          variant="ghost"
+                        >
+                          {isListening ? (
+                            <span className="relative flex h-3 w-3">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                              <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                            </span>
+                          ) : (
+                            <Mic className="h-4.5 w-4.5" />
+                          )}
+                        </Button>
+                        <Button 
+                          disabled={analyzingAi || (!note.trim() && !liveTranscript.trim())} 
+                          onClick={() => void handleAiSubmit()}
+                          type="button"
+                          className="h-10 rounded-xl bg-green-700 text-white hover:bg-green-800"
+                        >
+                          {analyzingAi ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    {aiError && <p className="mt-2 text-[13px] text-red-600">{aiError}</p>}
+                    {suggestion && (
+                      <div className="mt-4 rounded-xl bg-white p-4 shadow-sm border border-green-100">
+                        <p className="text-[14px] text-green-900 font-medium">✨ {suggestion.summary}</p>
+                      </div>
+                    )}
+                  </div>
 
-                <Button
-                  className="h-12 w-full rounded-2xl bg-green-800 text-[15px] font-semibold text-white hover:bg-[#5d8666]"
-                  disabled={saving}
-                  type="submit"
-                >
-                  {saving ? "Creating profile..." : "Continue to Dashboard"}
-                </Button>
-              </form>
+                  <div className="my-6 h-px w-full bg-[#ecece7]" />
+
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    <h3 className="text-[16px] font-semibold text-[#111111]">Verify & Finalize</h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="City">
+                        <Input
+                          onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+                          placeholder="Bengaluru"
+                          value={form.city}
+                        />
+                      </Field>
+                      <div className="hidden sm:block" />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Activity Level">
+                        <select
+                          className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
+                          onChange={(event) => setForm((current) => ({ ...current, activityLevel: event.target.value }))}
+                          value={form.activityLevel}
+                        >
+                          {activityOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Goal">
+                        <select
+                          className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
+                          onChange={(event) => setForm((current) => ({ ...current, goal: event.target.value }))}
+                          value={form.goal}
+                        >
+                          {goalOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+
+                    <Field label="Diet Type">
+                      <select
+                        className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            dietType: event.target.value,
+                            dietTypeOther: event.target.value === "Other" ? current.dietTypeOther : "",
+                          }))
+                        }
+                        value={form.dietType}
+                      >
+                        <option value="">Select diet type</option>
+                        {dietOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {form.dietType === "Other" ? (
+                      <Field label="Other Diet Type">
+                        <Input
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, dietTypeOther: event.target.value }))
+                          }
+                          placeholder="Tell us your diet type"
+                          type="text"
+                          value={form.dietTypeOther}
+                        />
+                      </Field>
+                    ) : null}
+
+                    <div className="rounded-[20px] border border-[#edf0e8] bg-[#fafaf7] px-4 py-4 text-[14px] leading-6 text-[#67707a]">
+                      Your dashboard will be generated from these values, and you can refine everything later from Profile
+                    </div>
+
+                    <Button
+                      className="h-12 w-full rounded-2xl bg-green-800 text-[15px] font-semibold text-white hover:bg-[#5d8666]"
+                      disabled={saving}
+                      type="submit"
+                    >
+                      {saving ? "Creating profile..." : "Finish Profile"}
+                    </Button>
+                  </form>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

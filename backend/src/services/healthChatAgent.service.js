@@ -353,28 +353,23 @@ async function generateHealthAssistantReply(conversationContext, payload) {
   const prompts = await getResolvedSystemPrompts();
 
   if (payload.type !== "image") {
-    const [{ default: Groq }] = await Promise.all([import("groq-sdk")]);
-    const groq = new Groq({
-      apiKey: env.groq.apiKey,
+    const [agent, messageTypes] = await Promise.all([
+      getTextAgent(),
+      import("@langchain/core/messages"),
+    ]);
+    
+    const response = await agent.invoke({
+      messages: [
+        new messageTypes.SystemMessage(prompts.text),
+        ...(systemContextMessage
+          ? [new messageTypes.SystemMessage(systemContextMessage)]
+          : []),
+        ...mapHistoryToLangChainMessages(recentMessages, messageTypes),
+        new messageTypes.HumanMessage(userPrompt),
+      ]
     });
 
-    const messages = [
-      { role: "system", content: prompts.text },
-      ...(systemContextMessage ? [{ role: "system", content: systemContextMessage }] : []),
-      ...recentMessages.slice(-env.chatMemory.promptRecentTurns).map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.message,
-      })),
-      { role: "user", content: userPrompt }
-    ];
-
-    const completion = await groq.chat.completions.create({
-      model: env.groq.chatModel,
-      temperature: 0.1,
-      messages,
-    });
-
-    return completion.choices?.[0]?.message?.content?.trim() || "";
+    return extractAssistantReply(response);
   }
 
   // Image requests go directly to the Groq vision API — bypassing the MCP agent loop
