@@ -384,6 +384,7 @@ export function OnboardingFlow() {
           }
 
           setLiveTranscript(currentTranscript);
+          setNote(currentTranscript);
         };
 
         recognition.onerror = (event: { error?: string }) => {
@@ -759,12 +760,12 @@ export function OnboardingFlow() {
 
       {suggestion ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-lg rounded-[26px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-            <div className="border-b border-[#efeee7] px-5 py-4">
+          <div className="flex w-full max-w-lg flex-col max-h-[90vh] rounded-[26px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+            <div className="border-b border-[#efeee7] px-5 py-4 shrink-0">
               <p className="text-[18px] font-semibold text-[#171717]">AI Profile Suggestion</p>
               <p className="mt-1 text-[14px] text-[#7f8790]">{suggestion.summary}</p>
             </div>
-            <div className="space-y-3 px-5 py-5">
+            <div className="space-y-3 px-5 py-5 overflow-y-auto">
               {(() => {
                 const effectiveUpdates = Object.entries(suggestion.updates).filter(([key, value]) => {
                   const oldVal = formatDisplayValue(key, (form as any)[key]);
@@ -817,7 +818,7 @@ export function OnboardingFlow() {
                 You can change these things later as well.
               </p>
             </div>
-            <div className="flex justify-end gap-3 border-t border-[#efeee7] px-5 py-4">
+            <div className="flex justify-end gap-3 border-t border-[#efeee7] px-5 py-4 shrink-0">
               <button
                 className="rounded-[14px] px-4 py-2.5 text-[14px] font-semibold text-[#7b828b] transition-colors hover:bg-[#f4f4ef]"
                 onClick={() => {
