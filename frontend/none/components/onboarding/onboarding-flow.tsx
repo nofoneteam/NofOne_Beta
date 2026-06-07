@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Mic, Send, RefreshCw } from "lucide-react";
+import { ArrowLeft, Mic, Sparkles, Check, SendHorizonal, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +24,47 @@ const activityOptions = [
   { label: "Active", value: "active" },
   { label: "Very Active", value: "very_active" },
 ] as const;
+
+type SuggestionSelectionMap = Record<string, boolean>;
+
+function formatSuggestionLabel(key: string) {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase())
+    .trim();
+}
+
+function formatSuggestionValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(", ") : "None";
+  }
+  if (value == null || value === "") {
+    return "—";
+  }
+  if (typeof value === "string") {
+    return value
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+  return String(value);
+}
+
+function formatDisplayValue(key: string, value: any) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(", ") : "None";
+  }
+  if (value == null || value === "") {
+    return "—";
+  }
+  if (key === "goal" || key === "activityLevel") {
+    return String(value)
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+  return String(value);
+}
 
 type SpeechRecognitionInstance = {
   continuous: boolean;
@@ -130,6 +173,7 @@ export function OnboardingFlow() {
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [acceptedAiNote, setAcceptedAiNote] = useState<string | null>(null);
+  const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState<SuggestionSelectionMap>({});
 
   const [form, setForm] = useState({
     name: "",
@@ -142,6 +186,11 @@ export function OnboardingFlow() {
     dietType: "",
     dietTypeOther: "",
     city: "",
+    targetCalories: null as number | null,
+    targetBurn: null as number | null,
+    targetCarbs: null as number | null,
+    targetProtein: null as number | null,
+    targetFat: null as number | null,
   });
 
   useEffect(() => {
@@ -184,6 +233,11 @@ export function OnboardingFlow() {
           dietType: isCustomDietType ? "Other" : resolvedDietType,
           dietTypeOther: isCustomDietType ? resolvedDietType : "",
           city: profileResponse.data.city ?? "",
+          targetCalories: profileResponse.data.targetCalories ?? null,
+          targetBurn: profileResponse.data.targetBurn ?? null,
+          targetCarbs: profileResponse.data.targetCarbs ?? null,
+          targetProtein: profileResponse.data.targetProtein ?? null,
+          targetFat: profileResponse.data.targetFat ?? null,
         });
       } catch {
         router.replace("/");
@@ -231,33 +285,56 @@ export function OnboardingFlow() {
     setAnalyzingAi(true);
     setAiError(null);
     try {
-      const response = await userApi.getProfileAiSuggestion({ note: note.trim() || liveTranscript.trim() }, token);
+      const currentNote = note.trim() || liveTranscript.trim();
+      const response = await userApi.getProfileAiSuggestion({ note: currentNote }, token);
       setSuggestion(response.data);
-      setForm(current => {
-        const next = { ...current };
-        if (response.data.updates.city) next.city = String(response.data.updates.city);
-        if (response.data.updates.activityLevel) next.activityLevel = response.data.updates.activityLevel as any;
-        if (response.data.updates.goal) next.goal = response.data.updates.goal as any;
-        if (response.data.updates.dietType) {
-          const dt = String(response.data.updates.dietType);
-          if (presetDietValues.has(dt)) {
-             next.dietType = dt;
-             next.dietTypeOther = "";
-          } else {
-             next.dietType = "Other";
-             next.dietTypeOther = dt;
-          }
-        }
-        return next;
-      });
-      setAcceptedAiNote(note.trim() || liveTranscript.trim());
-      setNote("");
-      setLiveTranscript("");
+      setSelectedSuggestionKeys(
+        Object.fromEntries(Object.keys(response.data.updates).map((key) => [key, true]))
+      );
+      setAcceptedAiNote(currentNote);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : "Failed to analyze note.");
     } finally {
       setAnalyzingAi(false);
     }
+  }
+
+  function applySuggestionAndSave() {
+    if (!suggestion) return;
+
+    const selectedUpdates = Object.fromEntries(
+      Object.entries(suggestion.updates).filter(([key]) => selectedSuggestionKeys[key])
+    );
+
+    setForm(current => {
+      const next = { ...current };
+      for (const [key, val] of Object.entries(selectedUpdates)) {
+        if (key in next) {
+          if (key === "dietType") {
+             const dt = String(val);
+             if (presetDietValues.has(dt)) {
+               next.dietType = dt;
+               next.dietTypeOther = "";
+             } else {
+               next.dietType = "Other";
+               next.dietTypeOther = dt;
+             }
+          } else {
+             (next as any)[key] = val;
+          }
+        }
+      }
+      return next;
+    });
+
+    setSuggestion(null);
+
+    setTimeout(() => {
+        const formElement = document.getElementById("onboarding-form") as HTMLFormElement | null;
+        if (formElement) {
+          formElement.requestSubmit();
+        }
+    }, 100);
   }
 
   function handleSpeechUnavailable(message: string) {
@@ -420,6 +497,11 @@ export function OnboardingFlow() {
         allergies: profile?.allergies ?? [],
         foodDislikes: profile?.foodDislikes ?? [],
         aiNotes: acceptedAiNote ? [...(profile?.aiNotes ?? []), acceptedAiNote] : (profile?.aiNotes ?? []),
+        targetCalories: form.targetCalories,
+        targetBurn: form.targetBurn,
+        targetCarbs: form.targetCarbs,
+        targetProtein: form.targetProtein,
+        targetFat: form.targetFat,
       };
 
       await userApi.saveProfile(payload, token);
@@ -599,158 +681,166 @@ export function OnboardingFlow() {
                 </div>
               ) : (
                 <div className="mt-2 space-y-5">
-                  <div className="rounded-[24px] border border-green-200 bg-green-50/50 p-5">
-                    <h3 className="text-[16px] font-semibold text-green-950">AI Setup</h3>
-                    <p className="mt-1 text-[14px] text-green-800">
-                      Tell us about your lifestyle, where you live, and your goals. Our AI will configure the rest!
-                    </p>
-                    <div className="mt-4 flex items-end gap-3">
-                      <div className="flex-1">
-                        <Input
-                          placeholder="e.g. I live in Bengaluru, trying to run a marathon..."
-                          value={isListening ? liveTranscript : note}
-                          onChange={(e) => setNote(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              void handleAiSubmit();
-                            }
-                          }}
-                        />
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Button
-                          className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
-                            isListening
-                              ? "bg-red-50 text-red-600 hover:bg-red-100"
-                              : "bg-white text-green-700 hover:bg-green-50 shadow-sm border border-green-200"
-                          }`}
+                  <div className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.14em] text-[#7b9480]">
+                    <Sparkles className="h-4 w-4" />
+                    <span>AI Notes</span>
+                  </div>
+                  <p className="text-[14px] leading-6 text-[#8c939b]">
+                    Tell Nofone about your body metrics, routine, health conditions, allergies, diet type, dislikes, and training goals. It will update your profile draft and refresh your daily calorie targets after save.
+                  </p>
+                  {aiError ? (
+                    <div className="rounded-[16px] border border-[#f0d7d7] bg-[#fff4f4] px-4 py-3 text-[13px] text-[#c05454]">
+                      {aiError}
+                    </div>
+                  ) : null}
+                  <div className="rounded-[18px] bg-[#f7f4ed] px-4 py-3">
+                    <textarea
+                      className="min-h-[108px] w-full resize-none bg-transparent text-[15px] leading-6 text-[#171717] outline-none placeholder:text-[#a5abb4]"
+                      onChange={(event) => setNote(event.target.value)}
+                      placeholder="Tell me about yourself, your health conditions, allergies, diet, dislikes, and goals"
+                      value={note}
+                    />
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-[13px] text-[#7f8790]">
+                        Example: &quot;I live in Bengaluru, training for a marathon, and want my profile and daily goals set.&quot;
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <button
+                          className={cn(
+                            "transition-colors",
+                            isListening ? "text-green-800" : "text-[#9aa0a8]",
+                          )}
                           onClick={handleMicToggle}
                           type="button"
-                          variant="ghost"
                         >
-                          {isListening ? (
-                            <span className="relative flex h-3 w-3">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                              <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
-                            </span>
-                          ) : (
-                            <Mic className="h-4.5 w-4.5" />
-                          )}
-                        </Button>
-                        <Button 
-                          disabled={analyzingAi || (!note.trim() && !liveTranscript.trim())} 
+                          <Mic className="h-4.5 w-4.5" />
+                        </button>
+                        <button
+                          className="flex items-center justify-center text-green-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={analyzingAi || (!note.trim() && !liveTranscript.trim())}
                           onClick={() => void handleAiSubmit()}
                           type="button"
-                          className="h-10 rounded-xl bg-green-700 text-white hover:bg-green-800"
                         >
-                          {analyzingAi ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        </Button>
+                          {analyzingAi ? <Spinner className="h-4 w-4" /> : <SendHorizonal className="h-4.5 w-4.5" />}
+                        </button>
                       </div>
                     </div>
-                    {aiError && <p className="mt-2 text-[13px] text-red-600">{aiError}</p>}
-                    {suggestion && (
-                      <div className="mt-4 rounded-xl bg-white p-4 shadow-sm border border-green-100">
-                        <p className="text-[14px] text-green-900 font-medium">✨ {suggestion.summary}</p>
-                      </div>
-                    )}
                   </div>
+                  {isListening || liveTranscript ? (
+                    <p className="text-[12px] text-[#7f8790]">
+                      {isListening
+                        ? `Listening... ${liveTranscript || "Start speaking to update your profile note."}`
+                        : liveTranscript}
+                    </p>
+                  ) : null}
 
-                  <div className="my-6 h-px w-full bg-[#ecece7]" />
-
-                  <form onSubmit={handleSubmit} className="space-y-5">
-                    <h3 className="text-[16px] font-semibold text-[#111111]">Verify & Finalize</h3>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="City">
-                        <Input
-                          onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                          placeholder="Bengaluru"
-                          value={form.city}
-                        />
-                      </Field>
-                      <div className="hidden sm:block" />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Activity Level">
-                        <select
-                          className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                          onChange={(event) => setForm((current) => ({ ...current, activityLevel: event.target.value }))}
-                          value={form.activityLevel}
-                        >
-                          {activityOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Goal">
-                        <select
-                          className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                          onChange={(event) => setForm((current) => ({ ...current, goal: event.target.value }))}
-                          value={form.goal}
-                        >
-                          {goalOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </div>
-
-                    <Field label="Diet Type">
-                      <select
-                        className="flex h-11 w-full rounded-[14px] border border-[#e7e5dd] bg-[#fbfbf7] px-3 text-[15px] text-[#111111] outline-none transition-colors focus:border-[#699772]"
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            dietType: event.target.value,
-                            dietTypeOther: event.target.value === "Other" ? current.dietTypeOther : "",
-                          }))
-                        }
-                        value={form.dietType}
-                      >
-                        <option value="">Select diet type</option>
-                        {dietOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    {form.dietType === "Other" ? (
-                      <Field label="Other Diet Type">
-                        <Input
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, dietTypeOther: event.target.value }))
-                          }
-                          placeholder="Tell us your diet type"
-                          type="text"
-                          value={form.dietTypeOther}
-                        />
-                      </Field>
-                    ) : null}
-
-                    <div className="rounded-[20px] border border-[#edf0e8] bg-[#fafaf7] px-4 py-4 text-[14px] leading-6 text-[#67707a]">
-                      Your dashboard will be generated from these values, and you can refine everything later from Profile
-                    </div>
-
+                  <div className="mt-4 flex flex-col gap-4">
                     <Button
-                      className="h-12 w-full rounded-2xl bg-green-800 text-[15px] font-semibold text-white hover:bg-[#5d8666]"
+                      className="h-12 w-full rounded-2xl bg-white border border-[#e7e5dd] text-[15px] font-semibold text-[#111111] hover:bg-[#fbfbf7]"
+                      onClick={() => {
+                        const formElement = document.getElementById("onboarding-form") as HTMLFormElement | null;
+                        if (formElement) formElement.requestSubmit();
+                      }}
+                      type="button"
                       disabled={saving}
-                      type="submit"
                     >
-                      {saving ? "Creating profile..." : "Finish Profile"}
+                      Skip for now
                     </Button>
-                  </form>
+                  </div>
+                  
+                  {/* Invisible form to keep handleSubmit structure */}
+                  <form id="onboarding-form" className="hidden" onSubmit={handleSubmit} />
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {suggestion ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-lg rounded-[26px] border border-[#ecece7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+            <div className="border-b border-[#efeee7] px-5 py-4">
+              <p className="text-[18px] font-semibold text-[#171717]">AI Profile Suggestion</p>
+              <p className="mt-1 text-[14px] text-[#7f8790]">{suggestion.summary}</p>
+            </div>
+            <div className="space-y-3 px-5 py-5">
+              {(() => {
+                const effectiveUpdates = Object.entries(suggestion.updates).filter(([key, value]) => {
+                  const oldVal = formatDisplayValue(key, (form as any)[key]);
+                  const newVal = formatSuggestionValue(value);
+                  return oldVal !== newVal;
+                });
+
+                if (effectiveUpdates.length === 0) {
+                  return (
+                    <div className="rounded-[16px] bg-[#f8f7f2] px-4 py-4 text-[14px] text-[#707780]">
+                      No changes made based on the provided note.
+                    </div>
+                  );
+                }
+
+                return effectiveUpdates.map(([key, value]) => (
+                  <div key={key} className="rounded-[16px] bg-[#f8f7f2] px-4 py-3">
+                    <label className="flex items-start gap-3">
+                      <input
+                        checked={selectedSuggestionKeys[key] ?? false}
+                        className="mt-1 h-4 w-4 rounded border-[#cfd4dc] text-green-800 focus:ring-green-700"
+                        onChange={(event) =>
+                          setSelectedSuggestionKeys((current) => ({
+                            ...current,
+                            [key]: event.target.checked,
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-medium text-[#8b929b]">
+                          {formatSuggestionLabel(key)}
+                        </p>
+                        <p className="mt-1 text-[14px] text-[#5b6067]">
+                          Change from{" "}
+                          <span className="font-semibold text-[#171717]">
+                            {formatDisplayValue(key, (form as any)[key])}
+                          </span>{" "}
+                          to{" "}
+                          <span className="font-semibold text-[#171717]">
+                            {formatSuggestionValue(value)}
+                          </span>
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                ));
+              })()}
+              <p className="mt-4 text-[13px] text-[#7f8790]">
+                You can change these things later as well.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#efeee7] px-5 py-4">
+              <button
+                className="rounded-[14px] px-4 py-2.5 text-[14px] font-semibold text-[#7b828b] transition-colors hover:bg-[#f4f4ef]"
+                onClick={() => {
+                  setSuggestion(null);
+                  setSelectedSuggestionKeys({});
+                }}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-green-800 px-4 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={saving}
+                onClick={applySuggestionAndSave}
+                type="button"
+              >
+                {saving ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                {saving ? "Saving..." : "Apply and Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
