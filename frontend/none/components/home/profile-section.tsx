@@ -8,6 +8,7 @@ import {
   FileText,
   Mic,
   Pencil,
+  Plus,
   SendHorizonal,
   Sparkles,
   Upload,
@@ -353,25 +354,69 @@ function EditableRow({
   const [inputValue, setInputValue] = useState(
     Array.isArray(value) ? value.join(", ") : value == null ? "" : String(value),
   );
+  const [tagValues, setTagValues] = useState<string[]>(
+    Array.isArray(value) ? value : [],
+  );
+
+  function addTag(tag = inputValue) {
+    const nextTag = String(tag ?? "").trim();
+
+    if (!nextTag) {
+      return;
+    }
+
+    setTagValues((current) =>
+      current.includes(nextTag) ? current : [...current, nextTag],
+    );
+    setInputValue("");
+  }
 
   function commit() {
-    onApply(field, normalizeValue(kind, inputValue) as DraftProfile[DraftFieldKey]);
+    if (kind === "tags") {
+      const nextTagValue = String(inputValue ?? "").trim();
+      const nextValues = nextTagValue
+        ? tagValues.includes(nextTagValue)
+          ? tagValues
+          : [...tagValues, nextTagValue]
+        : tagValues;
+
+      onApply(field, nextValues as DraftProfile[DraftFieldKey]);
+      setTagValues(nextValues);
+    } else {
+      onApply(field, normalizeValue(kind, inputValue) as DraftProfile[DraftFieldKey]);
+    }
+
+    setInputValue(Array.isArray(value) ? value.join(", ") : value == null ? "" : String(value));
     setEditing(false);
   }
 
   function cancel() {
     setInputValue(Array.isArray(value) ? value.join(", ") : value == null ? "" : String(value));
+    if (kind === "tags") {
+      setTagValues(Array.isArray(value) ? value : []);
+    }
     setEditing(false);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (kind === "tags" && e.key === "Enter") {
+      e.preventDefault();
+      addTag();
+      return;
+    }
+
     if (e.key === "Enter") {
       commit();
     }
   }
 
   function handleBlur(e: React.FocusEvent) {
-    if (e.relatedTarget && (e.relatedTarget as HTMLElement).closest(".cancel-btn")) {
+    if (
+      e.relatedTarget &&
+      (e.relatedTarget as HTMLElement).closest(
+        ".cancel-btn, .tag-add-button, .tag-remove-button, .commit-btn",
+      )
+    ) {
       return;
     }
     commit();
@@ -400,13 +445,56 @@ function EditableRow({
                   </option>
                 ))}
               </select>
+            ) : kind === "tags" ? (
+              <div className="flex w-full flex-col gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {tagValues.map((tag, index) => (
+                    <span
+                      key={`${tag}-${index}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#f4f4f7] px-3 py-1 text-[13px] text-[#4b5563]"
+                    >
+                      {tag}
+                      <button
+                        className="tag-remove-button rounded-full p-1 text-[#6b7280] transition-colors hover:bg-[#e5e7eb]"
+                        onClick={() => setTagValues((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                        type="button"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="min-w-[156px] flex-1 rounded-xl border border-[#e7e5dd] bg-[#fbfbf7] px-3 py-2 text-[15px] font-semibold text-[#111111] outline-none"
+                    onChange={(event) => setInputValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    placeholder="Add value and press + or Enter"
+                    type="text"
+                    value={inputValue}
+                    autoFocus
+                  />
+                  <button
+                    className="tag-add-button flex h-10 w-10 items-center justify-center rounded-full bg-[#edf2f7] text-[#4b5563] transition-colors hover:bg-[#e2e8f0]"
+                    onClick={() => addTag()}
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             ) : (
               <input
                 className="min-w-[156px] rounded-xl border border-[#e7e5dd] bg-[#fbfbf7] px-3 py-2 text-right text-[15px] font-semibold text-[#111111] outline-none"
                 onChange={(event) => setInputValue(event.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
-                placeholder={kind === "tags" ? "e.g. peanuts, dairy" : ""}
+                placeholder=""
                 step={kind === "number" ? "0.1" : undefined}
                 type={kind === "number" ? "number" : "text"}
                 value={inputValue}
@@ -414,7 +502,7 @@ function EditableRow({
               />
             )}
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#2d73ff] transition-colors hover:bg-[#eef4ff]"
+              className="commit-btn flex h-8 w-8 items-center justify-center rounded-full text-[#2d73ff] transition-colors hover:bg-[#eef4ff]"
               onClick={commit}
               type="button"
             >
@@ -434,11 +522,16 @@ function EditableRow({
               {formatDisplayValue(field, value)}
             </p>
             <button
-              className="flex h-7 w-7 items-center justify-center rounded-full text-[#9ba1aa] opacity-0 transition-all group-hover:opacity-100 hover:bg-[#f4f4ef]"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[#9ba1aa] opacity-100 transition-all md:opacity-0 md:group-hover:opacity-100 hover:bg-[#f4f4ef]"
               onClick={() => {
-                setInputValue(
-                  Array.isArray(value) ? value.join(", ") : value == null ? "" : String(value),
-                );
+                if (kind === "tags") {
+                  setTagValues(Array.isArray(value) ? value : value ? [String(value)] : []);
+                  setInputValue("");
+                } else {
+                  setInputValue(
+                    Array.isArray(value) ? value.join(", ") : value == null ? "" : String(value),
+                  );
+                }
                 setEditing(true);
               }}
               type="button"
