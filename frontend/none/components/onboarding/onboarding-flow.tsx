@@ -560,7 +560,7 @@ export function OnboardingFlow() {
                 We use these details to calibrate calorie targets, macros, progress summaries, and smarter chat context.
               </p>
 
-              <div className="mt-8 rounded-[28px] bg-white/80 p-5 shadow-[0_16px_46px_rgba(105,151,114,0.08)] backdrop-blur-sm">
+              <div className="hidden sm:block mt-8 rounded-[28px] bg-white/80 p-5 shadow-[0_16px_46px_rgba(105,151,114,0.08)] backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <p className="text-[14px] font-semibold uppercase tracking-[0.14em] text-[#9da4ad]">
                     Live Overview

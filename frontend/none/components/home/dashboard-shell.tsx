@@ -3326,9 +3326,17 @@ function InfoHint({
       }
 
       const rect = trigger.getBoundingClientRect();
+      const panelWidth = window.innerWidth >= 768 ? 224 : 176;
+      const minLeft = 12;
+      const maxLeft = Math.max(12, window.innerWidth - panelWidth - 12);
+      const left =
+        align === "start"
+          ? Math.min(Math.max(rect.left, minLeft), maxLeft)
+          : Math.min(Math.max(rect.right, panelWidth + minLeft), panelWidth + maxLeft);
+
       setPosition({
         top: rect.bottom + 8,
-        left: align === "start" ? rect.left : rect.right,
+        left,
       });
     }
 

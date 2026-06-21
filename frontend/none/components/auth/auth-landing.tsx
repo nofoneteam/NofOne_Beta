@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
-import { signInWithPhoneNumber } from "firebase/auth";
+import { signInWithPhoneNumber, signInWithPopup } from "firebase/auth";
 import { ChevronRight, Dumbbell, Salad, TrendingUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { authApi, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
 import { getStoredAccessToken, persistAccessToken } from "@/lib/auth/session";
 import {
+  createGoogleProvider,
   createPhoneRecaptchaVerifier,
   getFirebaseAuth,
   isFirebaseClientConfigured,
@@ -134,7 +135,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
     return "/home";
   }
 
-  /* Google authentication is temporarily disabled on the frontend.
   async function handleGoogleAuth() {
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -164,7 +164,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
       setIsSubmitting(false);
     }
   }
-  */
 
   async function handleRequestOtp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -325,7 +324,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
-              {/* Google authentication is temporarily disabled on the frontend.
               <button
                 type="button"
                 onClick={() => {
@@ -341,7 +339,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
                     : "Continue with Google"}
                 </span>
               </button>
-              */}
               <div className="grid grid-cols-2 gap-3">
                 {/*
                 <button
@@ -555,7 +552,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
   );
 }
 
-/* Google icon helper is temporarily unused since Google authentication is disabled.
 function GoogleIcon() {
   return (
     <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
@@ -578,4 +574,3 @@ function GoogleIcon() {
     </svg>
   );
 }
-*/
