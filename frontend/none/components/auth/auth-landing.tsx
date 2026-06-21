@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
-import { signInWithPhoneNumber, signInWithPopup } from "firebase/auth";
+import { signInWithPhoneNumber } from "firebase/auth";
 import { ChevronRight, Dumbbell, Salad, TrendingUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import { Label } from "@/components/ui/label";
 import { authApi, REFERRAL_CODE_STORAGE_KEY } from "@/lib/api";
 import { getStoredAccessToken, persistAccessToken } from "@/lib/auth/session";
 import {
-  createGoogleProvider,
   createPhoneRecaptchaVerifier,
   getFirebaseAuth,
   isFirebaseClientConfigured,
@@ -133,36 +132,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
 
   function resolvePostAuthRoute(onboarded?: boolean | null) {
     return "/home";
-  }
-
-  async function handleGoogleAuth() {
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      if (!isFirebaseClientConfigured()) {
-        throw new Error(
-          "Firebase Google Auth is not configured in the frontend environment yet. Add the NEXT_PUBLIC_FIREBASE_* values first.",
-        );
-      }
-
-      const credential = await signInWithPopup(getFirebaseAuth(), createGoogleProvider());
-      const idToken = await credential.user.getIdToken();
-      const response = await authApi.googleLogin({
-        idToken,
-        name: credential.user.displayName || undefined,
-        ...(activeReferralCode ? { referralCode: activeReferralCode } : {}),
-      });
-
-      persistAccessToken(response.data.accessToken);
-      clearStoredReferralCode();
-      router.push(resolvePostAuthRoute(response.data.user?.onboarded));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to continue with Google");
-    } finally {
-      setIsSubmitting(false);
-    }
   }
 
   async function handleRequestOtp(event: React.FormEvent<HTMLFormElement>) {
@@ -324,21 +293,6 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
             </div>
 
             <div className="mt-8 space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleGoogleAuth();
-                }}
-                disabled={isSubmitting}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-green-200 bg-white px-4 py-3.5 text-sm font-medium text-green-950 transition-colors hover:bg-green-50"
-              >
-                <GoogleIcon />
-                <span>
-                  {isSubmitting
-                    ? "Connecting..."
-                    : "Continue with Google"}
-                </span>
-              </button>
               <div className="grid grid-cols-2 gap-3">
                 {/*
                 <button
@@ -552,25 +506,3 @@ export function AuthLanding({ initialReferralCode }: { initialReferralCode?: str
   );
 }
 
-function GoogleIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
-      <path
-        d="M21.805 10.023H12.18v3.955h5.514c-.238 1.272-.954 2.35-2.028 3.07v2.55h3.287c1.925-1.771 3.032-4.382 3.032-7.485 0-.7-.063-1.372-.18-2.09Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12.18 22c2.755 0 5.066-.912 6.754-2.472l-3.287-2.55c-.912.612-2.072.973-3.467.973-2.658 0-4.911-1.795-5.716-4.207H3.066v2.629A10.2 10.2 0 0 0 12.18 22Z"
-        fill="#34A853"
-      />
-      <path
-        d="M6.464 13.744a6.13 6.13 0 0 1-.32-1.944c0-.675.117-1.331.32-1.945V7.226H3.066A10.194 10.194 0 0 0 2 11.8c0 1.642.394 3.197 1.066 4.573l3.398-2.629Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12.18 5.648c1.497 0 2.842.515 3.9 1.527l2.92-2.92C17.24 2.612 14.93 1.6 12.18 1.6A10.2 10.2 0 0 0 3.066 7.226l3.398 2.629c.805-2.412 3.058-4.207 5.716-4.207Z"
-        fill="#EA4335"
-      />
-    </svg>
-  );
-}
