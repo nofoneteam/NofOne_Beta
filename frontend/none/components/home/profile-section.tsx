@@ -182,6 +182,36 @@ function normalizeDraftProfile(draft: DraftProfile): DraftProfile {
   };
 }
 
+function areDraftProfilesEqual(a: DraftProfile, b: DraftProfile) {
+  const keys = new Set<keyof DraftProfile>([...Object.keys(a) as Array<keyof DraftProfile>, ...Object.keys(b) as Array<keyof DraftProfile>]);
+
+  for (const key of keys) {
+    const valueA = a[key];
+    const valueB = b[key];
+
+    if (Array.isArray(valueA) || Array.isArray(valueB)) {
+      if (!Array.isArray(valueA) || !Array.isArray(valueB)) {
+        return false;
+      }
+      if (valueA.length !== valueB.length) {
+        return false;
+      }
+      for (let i = 0; i < valueA.length; i += 1) {
+        if (valueA[i] !== valueB[i]) {
+          return false;
+        }
+      }
+      continue;
+    }
+
+    if (valueA !== valueB) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function sanitizeAiSuggestionUpdates(updates: Record<string, unknown>): Partial<DraftProfile> {
   return Object.entries(updates).reduce<Partial<DraftProfile>>((accumulator, [key, value]) => {
     const typedKey = key as DraftFieldKey;
@@ -486,6 +516,20 @@ function EditableRow({
                   >
                     <Plus className="h-4 w-4" />
                   </button>
+                  <button
+                    className="commit-btn flex h-10 w-10 items-center justify-center rounded-full text-[#2d73ff] transition-colors hover:bg-[#eef4ff]"
+                    onClick={commit}
+                    type="button"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    className="cancel-btn flex h-10 w-10 items-center justify-center rounded-full text-[#df5b5b] transition-colors hover:bg-[#fff1f1]"
+                    onClick={cancel}
+                    type="button"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             ) : (
@@ -501,26 +545,47 @@ function EditableRow({
                 autoFocus
               />
             )}
-            <button
-              className="commit-btn flex h-8 w-8 items-center justify-center rounded-full text-[#2d73ff] transition-colors hover:bg-[#eef4ff]"
-              onClick={commit}
-              type="button"
-            >
-              <Check className="h-4 w-4" />
-            </button>
-            <button
-              className="cancel-btn flex h-8 w-8 items-center justify-center rounded-full text-[#df5b5b] transition-colors hover:bg-[#fff1f1]"
-              onClick={cancel}
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {kind !== "tags" ? (
+              <>
+                <button
+                  className="commit-btn flex h-8 w-8 items-center justify-center rounded-full text-[#2d73ff] transition-colors hover:bg-[#eef4ff]"
+                  onClick={commit}
+                  type="button"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                <button
+                  className="cancel-btn flex h-8 w-8 items-center justify-center rounded-full text-[#df5b5b] transition-colors hover:bg-[#fff1f1]"
+                  onClick={cancel}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </>
+            ) : null}
           </>
         ) : (
           <>
-            <p className="text-right text-[15px] font-semibold text-[#171717]">
-              {formatDisplayValue(field, value)}
-            </p>
+            {kind === "tags" ? (
+              <div className="flex flex-wrap justify-end gap-2">
+                {(Array.isArray(value) ? value : value ? [String(value)] : []).length > 0 ? (
+                  (Array.isArray(value) ? value : value ? [String(value)] : []).map((tag, index) => (
+                    <span
+                      key={`${tag}-${index}`}
+                      className="inline-flex items-center rounded-full bg-[#f4f4f7] px-3 py-1 text-[13px] text-[#4b5563]"
+                    >
+                      {tag}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-right text-[15px] font-semibold text-[#171717]">—</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-right text-[15px] font-semibold text-[#171717]">
+                {formatDisplayValue(field, value)}
+              </p>
+            )}
             <button
               className="flex h-7 w-7 items-center justify-center rounded-full text-[#9ba1aa] opacity-100 transition-all md:opacity-0 md:group-hover:opacity-100 hover:bg-[#f4f4ef]"
               onClick={() => {
@@ -575,6 +640,11 @@ export function ProfileSection({
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const [noteInput, setNoteInput] = useState("");
+  const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const initialDraftRef = useRef<DraftProfile | null>(draft);
+  const initialCustomDietTypeRef = useRef<string>(
+    profile?.dietType && !presetDietValues.has(profile.dietType) ? profile.dietType : "",
+  );
   const [aiError, setAiError] = useState<string | null>(null);
   const [pendingSuggestion, setPendingSuggestion] = useState<ProfileAiSuggestion | null>(null);
   const [pendingNote, setPendingNote] = useState("");
@@ -587,6 +657,16 @@ export function ProfileSection({
     const resolvedDietType = profile?.dietType ?? "";
     return resolvedDietType && !presetDietValues.has(resolvedDietType) ? resolvedDietType : "";
   });
+
+  useEffect(() => {
+    if (profile) {
+      const initialDraft = toDraftProfile(profile);
+      setDraft(initialDraft);
+      initialDraftRef.current = initialDraft;
+      initialCustomDietTypeRef.current =
+        profile.dietType && !presetDietValues.has(profile.dietType) ? profile.dietType : "";
+    }
+  }, [profile]);
 
   useEffect(() => {
     return () => {
@@ -612,6 +692,24 @@ export function ProfileSection({
         draft.goal,
     );
   }, [draft]);
+
+  const hasProfileChanges = useMemo(() => {
+    if (!draft || !initialDraftRef.current) {
+      return false;
+    }
+
+    if (!areDraftProfilesEqual(draft, initialDraftRef.current)) {
+      return true;
+    }
+
+    const currentDietType = draft.dietType === "Other" ? customDietType.trim() : draft.dietType ?? "";
+    const initialDietType =
+      initialDraftRef.current.dietType === "Other"
+        ? initialCustomDietTypeRef.current.trim()
+        : initialDraftRef.current.dietType ?? "";
+
+    return currentDietType !== initialDietType;
+  }, [customDietType, draft]);
 
   function applyField(field: DraftFieldKey, value: DraftProfile[DraftFieldKey]) {
     if (field === "dietType" && value !== "Other") {
@@ -908,6 +1006,7 @@ export function ProfileSection({
           ) : null}
           <div className="rounded-[18px] bg-[#f7f4ed] px-4 py-3">
             <textarea
+              ref={noteTextareaRef}
               className="min-h-[108px] w-full resize-none bg-transparent text-[15px] leading-6 text-[#171717] outline-none placeholder:text-[#a5abb4]"
               onChange={(event) => setNoteInput(event.target.value)}
               placeholder="Tell me about yourself, your health conditions, allergies, diet, dislikes, and goals"
@@ -968,12 +1067,29 @@ export function ProfileSection({
           ) : null}
           <div className="space-y-3">
             {(draft.aiNotes ?? []).map((note, index) => (
-              <div key={`${note}-${index}`} className="flex items-start gap-3">
+              <div
+                key={`${note}-${index}`}
+                className="flex cursor-pointer items-start gap-3 rounded-[12px] px-3 py-2 transition-colors hover:bg-[#f3f3ee]"
+                onClick={() => {
+                  setNoteInput(note);
+                  noteTextareaRef.current?.focus();
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setNoteInput(note);
+                    noteTextareaRef.current?.focus();
+                  }
+                }}
+              >
                 <span className="mt-2 h-2 w-2 rounded-full bg-[#b8d2bc]" />
                 <p className="flex-1 text-[14px] text-[#5b6067]">{note}</p>
                 <button
                   className="rounded-full p-1 text-[#d46363] transition-colors hover:bg-[#fff2f2]"
-                  onClick={() =>
+                  onClick={(event) => {
+                    event.stopPropagation();
                     setDraft((current) =>
                       current
                         ? {
@@ -983,8 +1099,8 @@ export function ProfileSection({
                             ),
                           }
                         : current,
-                    )
-                  }
+                    );
+                  }}
                   type="button"
                 >
                   <X className="h-4 w-4" />
@@ -1048,37 +1164,46 @@ export function ProfileSection({
         ) : null}
       </SectionCard>
 
-      <div className="sticky bottom-4 flex justify-end">
-        <button
-          className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-[18px] bg-green-800 px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_16px_34px_rgba(22,34,18,0.14)] transition-opacity hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!canSave || savingProfile}
-          onClick={() => {
-            const resolvedDietType =
-              draft.dietType === "Other"
-                ? customDietType.trim()
-                : draft.dietType ?? null;
+      {hasProfileChanges ? (
+        <div className="sticky bottom-4 flex justify-end">
+          <button
+            className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-[18px] bg-green-800 px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_16px_34px_rgba(22,34,18,0.14)] transition-opacity hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!canSave || savingProfile}
+            onClick={() => {
+              const resolvedDietType =
+                draft.dietType === "Other"
+                  ? customDietType.trim()
+                  : draft.dietType ?? null;
 
-            if (draft.dietType === "Other" && !resolvedDietType) {
-              toast({
-                title: "Add your diet type",
-                description: "Please enter your diet type when selecting Other.",
-                variant: "error",
-              });
-              return;
-            }
+              if (draft.dietType === "Other" && !resolvedDietType) {
+                toast({
+                  title: "Add your diet type",
+                  description: "Please enter your diet type when selecting Other.",
+                  variant: "error",
+                });
+                return;
+              }
 
-            const currentDraft = draftRef.current || draft;
-            void onSaveProfile({
-              ...currentDraft,
-              dietType: resolvedDietType,
-            }).catch(() => null);
-          }}
-          type="button"
-        >
-          {savingProfile ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-          <span>{savingProfile ? "Saving Profile..." : "Save Profile"}</span>
-        </button>
-      </div>
+              const currentDraft = draftRef.current || draft;
+              void onSaveProfile({
+                ...currentDraft,
+                dietType: resolvedDietType,
+              })
+                .then(() => {
+                  initialDraftRef.current = currentDraft;
+                  if (draft.dietType === "Other") {
+                    initialCustomDietTypeRef.current = resolvedDietType ?? "";
+                  }
+                })
+                .catch(() => null);
+            }}
+            type="button"
+          >
+            {savingProfile ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+            <span>{savingProfile ? "Saving Profile..." : "Save Profile"}</span>
+          </button>
+        </div>
+      ) : null}
 
       {pendingSuggestion ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2f32]/18 p-4 backdrop-blur-[2px]">
